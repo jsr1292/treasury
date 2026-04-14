@@ -31,6 +31,8 @@
       document.head.appendChild(meta);
     }
     meta.content = color;
+    // Update html background so status bar matches
+    document.documentElement.style.background = color;
   }
 
   $effect(() => {
