@@ -18,7 +18,25 @@
     theme = theme === 'dark' ? 'light' : 'dark';
     document.documentElement.setAttribute('data-theme', theme);
     localStorage.setItem('treasury-theme', theme);
+    updateThemeColor();
   }
+
+  function updateThemeColor() {
+    const color = theme === 'dark' ? '#07090f' : '#f8f7f4';
+    let meta = document.querySelector('meta[name="theme-color"]');
+    if (!meta) {
+      meta = document.createElement('meta');
+      meta.name = 'theme-color';
+      document.head.appendChild(meta);
+    }
+    meta.content = color;
+  }
+
+  $effect(() => {
+    if (typeof window !== 'undefined') {
+      updateThemeColor();
+    }
+  });
 
   const navSections = [
     {
@@ -129,18 +147,28 @@
 
       <!-- Content -->
       <main class="flex-1 pb-20 md:pb-8 overflow-auto">
-        <!-- Mobile theme toggle -->
-        <div class="md:hidden fixed top-3 right-3" style="z-index: 40;">
-          <button onclick={toggleTheme}
-            class="flex items-center justify-center w-9 h-9 rounded-full glass"
-            style="border: 1px solid var(--glass-border); cursor: pointer;">
-            <span class="text-sm">{theme === 'dark' ? '🌙' : '☀️'}</span>
-          </button>
-        </div>
-
         {@render children()}
       </main>
     </div>
+  </div>
+
+  <!-- Mobile theme toggle (bottom-left, above nav) -->
+  <div class="md:hidden fixed bottom-16 left-3" style="z-index: 45;">
+    <button onclick={toggleTheme}
+      class="flex items-center justify-center w-10 h-10 rounded-full glass"
+      style="border: 1px solid var(--glass-border); cursor: pointer; box-shadow: var(--shadow);">
+      <span class="text-sm">{theme === 'dark' ? '🌙' : '☀️'}</span>
+    </button>
+  </div>
+
+
+  <!-- Mobile theme toggle (bottom-left, above nav, z-index below More panel) -->
+  <div class="md:hidden fixed bottom-16 left-3" style="z-index: 45;">
+    <button onclick={toggleTheme}
+      class="flex items-center justify-center w-10 h-10 rounded-full glass"
+      style="border: 1px solid var(--glass-border); cursor: pointer; box-shadow: var(--shadow);">
+      <span class="text-sm">{theme === 'dark' ? '🌙' : '☀️'}</span>
+    </button>
   </div>
 
   <!-- Mobile bottom nav -->
