@@ -4,6 +4,16 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, minimal-ui" />
     <meta name="theme-color" content="#07090f" />
+    <script>
+      // Update theme-color before paint to avoid black flash
+      try {
+        var t = localStorage.getItem('treasury-theme');
+        if (t === 'light') {
+          document.querySelector('meta[name="theme-color"]').content = '#f8f7f4';
+          document.documentElement.setAttribute('data-theme', 'light');
+        }
+      } catch(e) {}
+    </script>
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="mobile-web-app-capable" content="yes" />
