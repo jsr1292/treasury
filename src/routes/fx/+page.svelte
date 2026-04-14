@@ -60,11 +60,11 @@
       <div class="text-[10px] font-bold uppercase tracking-[0.12em] mb-3" style="color: var(--text3);">
         Latest · {new Date(rates[0]?.date).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
       </div>
-      <div class="grid grid-cols-3 gap-2">
+      <div class="grid grid-cols-2 md:grid-cols-3 gap-2">
         {#each rates.filter((r, i, arr) => arr.findIndex(x => x.toCurrency === r.toCurrency) === i).slice(0, 30) as rate}
-          <div class="flex items-center justify-between px-3 py-2 rounded-lg" style="background: rgba(255,255,255,0.02);">
-            <span class="text-xs font-bold" style="color: var(--text);">EUR/{rate.toCurrency}</span>
-            <span class="text-xs mono" style="color: var(--gold);">{fmt4(rate.rate)}</span>
+          <div class="flex items-center justify-between gap-1 px-3 py-2 rounded-lg" style="background: rgba(255,255,255,0.02);">
+            <span class="text-[10px] md:text-xs font-bold whitespace-nowrap" style="color: var(--text);">EUR/{rate.toCurrency}</span>
+            <span class="text-[10px] md:text-xs mono whitespace-nowrap" style="color: var(--gold);">{fmt4(rate.rate)}</span>
           </div>
         {/each}
       </div>
