@@ -154,7 +154,7 @@
       </header>
 
       <!-- Content -->
-      <main class="flex-1 md:pb-8 overflow-auto" style="padding-bottom: calc(5rem + env(safe-area-inset-bottom, 0px));">
+      <main class="flex-1 md:pb-8 overflow-auto" style="padding-bottom: calc(7rem + env(safe-area-inset-bottom, 0px));">
         {@render children()}
       </main>
     </div>
@@ -162,7 +162,7 @@
 
 
   <!-- Mobile theme toggle (bottom-right, above nav, z-index below More panel) -->
-  <div class="md:hidden fixed bottom-20 right-4" style="z-index: 45;">
+  <div class="md:hidden fixed bottom-28 right-4" style="z-index: 45;">
     <button onclick={toggleTheme}
       class="flex items-center justify-center w-10 h-10 rounded-full glass"
       style="border: 1px solid var(--glass-border); cursor: pointer; box-shadow: var(--shadow);">
