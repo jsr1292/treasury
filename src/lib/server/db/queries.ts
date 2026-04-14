@@ -7,6 +7,29 @@ export async function getEntities() {
   return db.select().from(entities).orderBy(entities.name);
 }
 
+export async function getEntityTree() {
+  const all = await db.select().from(entities).orderBy(entities.name);
+  const map = new Map();
+  const roots = [];
+  
+  // First pass: create nodes
+  for (const e of all) {
+    map.set(e.id, { ...e, children: [] });
+  }
+  
+  // Second pass: build tree
+  for (const e of all) {
+    const node = map.get(e.id);
+    if (e.parentId && map.has(e.parentId)) {
+      map.get(e.parentId).children.push(node);
+    } else {
+      roots.push(node);
+    }
+  }
+  
+  return roots;
+}
+
 export async function createEntity(data) {
   const [entity] = await db.insert(entities).values({
     name: data.name,
