@@ -23,7 +23,7 @@
 
   import { formatNumber } from '$lib/format';
   const fmt = (n) => formatNumber(n, undefined); // 2 decimals by default
-  const fmt4 = (n) => parseFloat(n).toFixed(4); // FX rates need 4 decimals
+  const fmt4 = (n) => new Intl.NumberFormat(navigator.language || 'es-ES', { minimumFractionDigits: 4, maximumFractionDigits: 4 }).format(parseFloat(n));
 </script>
 
 <svelte:head>
