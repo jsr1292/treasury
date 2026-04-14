@@ -24,16 +24,24 @@
 
   function updateThemeColor() {
     const color = theme === 'dark' ? '#07090f' : '#f8f7f4';
-    let meta = document.querySelector('meta[name="theme-color"]');
-    if (!meta) {
-      meta = document.createElement('meta');
-      meta.name = 'theme-color';
-      document.head.appendChild(meta);
-    }
+    
+    // iOS Safari ignores meta.content mutations — remove and re-create
+    const old = document.querySelector('meta[name="theme-color"]');
+    if (old) old.remove();
+    const meta = document.createElement('meta');
+    meta.name = 'theme-color';
     meta.content = color;
-    // Update both html AND body — iOS Safari uses body for status bar
+    document.head.appendChild(meta);
+    
+    // Update both html AND body — iOS uses body for status bar
     document.documentElement.style.background = color;
     document.body.style.background = color;
+    
+    // Force iOS repaint nudge
+    document.documentElement.style.paddingTop = '1px';
+    requestAnimationFrame(() => {
+      document.documentElement.style.paddingTop = '';
+    });
   }
 
   $effect(() => {
