@@ -1,6 +1,6 @@
-import { getDashboard } from '$lib/server/db/queries';
+import { fetchDashboard } from '$lib/connector/query-builder';
 import type { PageServerLoad } from './$types';
 
 export const load: PageServerLoad = async () => {
-  return getDashboard();
+  return fetchDashboard();
 };

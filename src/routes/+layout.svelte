@@ -6,7 +6,7 @@
     { href: '/', label: 'Dashboard', icon: '📊' },
     { href: '/entities', label: 'Entities', icon: '🏢' },
     { href: '/accounts', label: 'Accounts', icon: '🏦' },
-    { href: '/fx', label: 'FX Rates', icon: '💱' },
+    { href: '/settings', label: 'Settings', icon: '⚙️' },
   ];
 </script>
 
@@ -15,7 +15,6 @@
     {@render children()}
   </main>
 
-  <!-- Bottom nav -->
   <nav class="fixed bottom-0 left-0 right-0 bg-[var(--bg-card)]/95 backdrop-blur-lg border-t border-[var(--border)]">
     <div class="max-w-lg mx-auto flex">
       {#each nav as item}
