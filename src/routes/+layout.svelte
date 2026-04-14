@@ -154,7 +154,7 @@
       </header>
 
       <!-- Content -->
-      <main class="flex-1 pb-20 md:pb-8 overflow-auto">
+      <main class="flex-1 md:pb-8 overflow-auto" style="padding-bottom: calc(5rem + env(safe-area-inset-bottom, 0px));">
         {@render children()}
       </main>
     </div>
@@ -188,7 +188,7 @@
       </div>
     {/if}
 
-    <div class="glass" style="border-top: 1px solid var(--glass-border);">
+    <div class="glass" style="border-top: 1px solid var(--glass-border); padding-bottom: env(safe-area-inset-bottom, 0px);">
       <div class="max-w-lg mx-auto flex">
         {#each mobilePrimary as item}
           {@const isActive = currentPath === item.href || (item.href !== '/' && currentPath.startsWith(item.href))}
