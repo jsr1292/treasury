@@ -152,18 +152,9 @@
     </div>
   </div>
 
-  <!-- Mobile theme toggle (bottom-left, above nav) -->
-  <div class="md:hidden fixed bottom-16 left-3" style="z-index: 45;">
-    <button onclick={toggleTheme}
-      class="flex items-center justify-center w-10 h-10 rounded-full glass"
-      style="border: 1px solid var(--glass-border); cursor: pointer; box-shadow: var(--shadow);">
-      <span class="text-sm">{theme === 'dark' ? '🌙' : '☀️'}</span>
-    </button>
-  </div>
 
-
-  <!-- Mobile theme toggle (bottom-left, above nav, z-index below More panel) -->
-  <div class="md:hidden fixed bottom-16 left-3" style="z-index: 45;">
+  <!-- Mobile theme toggle (bottom-right, above nav, z-index below More panel) -->
+  <div class="md:hidden fixed bottom-20 right-4" style="z-index: 45;">
     <button onclick={toggleTheme}
       class="flex items-center justify-center w-10 h-10 rounded-full glass"
       style="border: 1px solid var(--glass-border); cursor: pointer; box-shadow: var(--shadow);">
