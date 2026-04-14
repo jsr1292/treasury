@@ -1,25 +1,123 @@
 @import 'tailwindcss';
 
 :root {
-  --bg-dark: #0a0a0f;
-  --bg-card: #13131a;
-  --bg-card-hover: #1a1a25;
-  --border: #1e1e2e;
-  --accent: #3b82f6;
-  --accent-dim: #3b82f620;
-  --green: #30d158;
-  --red: #ff2d55;
-  --yellow: #ffd60a;
-  --text-primary: #f0f0f5;
-  --text-secondary: #8888a0;
+  --bg-dark: #07090f;
+  --bg2: #0d1120;
+  --bg-card: #0f1525;
+  --bg-card-hover: #151d33;
+  --border: #1e2a42;
+  --glass: rgba(15, 21, 37, 0.72);
+  --glass-border: rgba(255, 255, 255, 0.08);
+  --gold: #c9a84c;
+  --gold2: #e8c96a;
+  --green: #00e5a0;
+  --red: #ff4d6a;
+  --blue: #3b82f6;
+  --text: #d4dce8;
+  --text2: #b0c0d8;
+  --text3: #8096b4;
 }
 
 body {
-  font-family: 'Inter', -apple-system, sans-serif;
+  font-family: 'JetBrains Mono', 'Inter', monospace;
   background: var(--bg-dark);
-  color: var(--text-primary);
+  color: var(--text);
   -webkit-font-smoothing: antialiased;
+}
+
+/* Glass panel effect */
+.glass {
+  background: var(--glass);
+  border: 1px solid var(--glass-border);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+}
+
+/* Gold gradient button */
+.btn-gold {
+  background: linear-gradient(135deg, var(--gold), #b8943f);
+  color: var(--bg-dark);
+  font-weight: 700;
+}
+
+.btn-gold:hover {
+  background: linear-gradient(135deg, var(--gold2), var(--gold));
+}
+
+/* Input styling */
+.input {
+  width: 100%;
+  padding: 10px 14px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+  color: var(--text);
+  font-size: 13px;
+  outline: none;
+  transition: border-color 0.15s;
+}
+
+.input:focus {
+  border-color: rgba(201, 168, 76, 0.4);
+}
+
+.input::placeholder {
+  color: var(--text3);
+}
+
+/* Label */
+.label {
+  display: block;
+  font-size: 10px;
+  color: var(--text3);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  margin-bottom: 6px;
 }
 
 /* Number formatting */
 .mono { font-family: 'JetBrains Mono', monospace; }
+
+/* Stat card */
+.stat-card {
+  background: var(--bg-card);
+  border: 1px solid var(--glass-border);
+  border-radius: 12px;
+  padding: 16px;
+}
+
+/* Account row */
+.account-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  background: var(--bg-card);
+  border: 1px solid var(--glass-border);
+  border-radius: 12px;
+  transition: border-color 0.15s;
+}
+
+.account-row:hover {
+  border-color: rgba(201, 168, 76, 0.3);
+}
+
+/* Bottom nav */
+.nav-tab {
+  color: var(--text3);
+  transition: color 0.2s;
+}
+
+.nav-tab:hover {
+  color: var(--text);
+}
+
+.nav-tab.active {
+  color: var(--gold);
+}
+
+/* Scrollbar */
+::-webkit-scrollbar {
+  width: 0;
+  display: none;
+}
