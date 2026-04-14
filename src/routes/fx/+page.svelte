@@ -21,9 +21,9 @@
     fetching = false;
   }
 
-  function fmt(n) {
-    return parseFloat(n).toFixed(4);
-  }
+  import { formatNumber } from '$lib/format';
+  const fmt = (n) => formatNumber(n, undefined); // 2 decimals by default
+  const fmt4 = (n) => parseFloat(n).toFixed(4); // FX rates need 4 decimals
 </script>
 
 <svelte:head>
@@ -64,7 +64,7 @@
         {#each rates.filter((r, i, arr) => arr.findIndex(x => x.toCurrency === r.toCurrency) === i).slice(0, 30) as rate}
           <div class="flex items-center justify-between px-3 py-2 rounded-lg" style="background: rgba(255,255,255,0.02);">
             <span class="text-xs font-bold" style="color: var(--text);">EUR/{rate.toCurrency}</span>
-            <span class="text-xs mono" style="color: var(--gold);">{fmt(rate.rate)}</span>
+            <span class="text-xs mono" style="color: var(--gold);">{fmt4(rate.rate)}</span>
           </div>
         {/each}
       </div>
@@ -79,7 +79,7 @@
             <span class="text-xs mono" style="color: var(--text3);">{new Date(rate.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</span>
             <span class="text-xs font-medium" style="color: var(--text);">EUR → {rate.toCurrency}</span>
             <span class="flex-1"></span>
-            <span class="text-xs mono font-bold" style="color: var(--gold);">{fmt(rate.rate)}</span>
+            <span class="text-xs mono font-bold" style="color: var(--gold);">{fmt4(rate.rate)}</span>
             <span class="text-[10px]" style="color: var(--text3);">{rate.source}</span>
           </div>
         {/each}
