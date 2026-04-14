@@ -32,7 +32,7 @@
   <title>Entities — Treasury</title>
 </svelte:head>
 
-<div class="max-w-2xl mx-auto px-4 py-6">
+<div class="max-w-4xl mx-auto px-6 py-6">
   <div class="flex items-center justify-between mb-6">
     <div>
       <div class="text-[10px] uppercase tracking-[0.12em] mb-1" style="color: var(--text3);">Organizational structure</div>

@@ -89,7 +89,7 @@
   <title>{entity?.name || 'Entity'} — Treasury</title>
 </svelte:head>
 
-<div class="max-w-2xl mx-auto px-4 py-6">
+<div class="max-w-4xl mx-auto px-6 py-6">
   {#if entity}
     <a href="/entities" class="text-xs" style="color: var(--text3); letter-spacing: 0.1em;">← ENTITIES</a>
 

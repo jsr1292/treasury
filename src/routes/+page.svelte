@@ -15,7 +15,7 @@
   <title>Treasury — Dashboard</title>
 </svelte:head>
 
-<div class="max-w-2xl mx-auto px-4 py-6">
+<div class="max-w-4xl mx-auto px-6 py-6">
   <!-- Header -->
   <div class="mb-6">
     <div class="text-[10px] uppercase tracking-[0.15em] mb-2" style="color: var(--text3);">Cash Position</div>

@@ -33,22 +33,50 @@
   ];
 </script>
 
-<div class="min-h-screen pb-16" style="background: var(--bg-dark); color: var(--text);">
-  <main>
-    {@render children()}
-  </main>
+<div class="min-h-screen" style="background: var(--bg-dark); color: var(--text);">
+  <div class="flex min-h-screen">
+    <!-- Desktop sidebar (hidden on mobile) -->
+    <aside class="hidden md:flex flex-col w-56 shrink-0 glass" style="border-right: 1px solid var(--glass-border); height: 100vh; position: sticky; top: 0;">
+      <!-- Logo -->
+      <div class="px-5 py-6" style="border-bottom: 1px solid var(--glass-border);">
+        <div class="text-lg font-bold" style="color: var(--gold); letter-spacing: 0.05em;">📊 Treasury</div>
+        <div class="text-[10px] mt-0.5" style="color: var(--text3); letter-spacing: 0.1em;">CASH MANAGEMENT</div>
+      </div>
 
-  <!-- Bottom nav -->
-  <nav class="fixed bottom-0 left-0 right-0 glass" style="border-top: 1px solid var(--glass-border);">
+      <!-- Nav items -->
+      <nav class="flex-1 py-4 px-3 space-y-1">
+        {#each nav as item}
+          {@const isActive = currentPath === item.href}
+          <a href={item.href}
+            class="flex items-center gap-3 px-3 py-2.5 rounded-lg no-underline transition-colors"
+            style="color: {isActive ? 'var(--gold)' : 'var(--text3)'}; background: {isActive ? 'rgba(201,168,76,0.1)' : 'transparent'};">
+            <div style="width: 20px; height: 20px;">{@html item.icon}</div>
+            <span style="font-size: 12px; letter-spacing: 0.05em; font-weight: {isActive ? '600' : '400'};">{item.label}</span>
+          </a>
+        {/each}
+      </nav>
+
+      <!-- Footer -->
+      <div class="px-5 py-4" style="border-top: 1px solid var(--glass-border);">
+        <div class="text-[10px]" style="color: var(--text3);">Treasury v0.1</div>
+      </div>
+    </aside>
+
+    <!-- Main content -->
+    <main class="flex-1 pb-20 md:pb-6 overflow-auto">
+      {@render children()}
+    </main>
+  </div>
+
+  <!-- Mobile bottom nav (hidden on desktop) -->
+  <nav class="md:hidden fixed bottom-0 left-0 right-0 glass" style="border-top: 1px solid var(--glass-border); z-index: 50;">
     <div class="max-w-lg mx-auto flex">
       {#each nav as item}
         {@const isActive = currentPath === item.href}
         <a href={item.href}
           class="flex-1 flex flex-col items-center py-3 gap-1 no-underline transition-colors"
           style="color: {isActive ? 'var(--gold)' : 'var(--text3)'};">
-          <div class="nav-icon" style="width: 22px; height: 22px;">
-            {@html item.icon}
-          </div>
+          <div style="width: 22px; height: 22px;">{@html item.icon}</div>
           <span style="font-size: 9px; letter-spacing: 0.1em; text-transform: uppercase; line-height: 1;">{item.label}</span>
         </a>
       {/each}
@@ -57,8 +85,8 @@
 </div>
 
 <style>
-  .nav-icon :global(svg) {
-    width: 22px;
-    height: 22px;
+  aside :global(svg), nav :global(svg) {
+    width: inherit;
+    height: inherit;
   }
 </style>
