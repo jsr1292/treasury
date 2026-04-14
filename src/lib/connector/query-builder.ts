@@ -6,7 +6,11 @@ let sql: ReturnType<typeof postgres> | null = null;
 
 function getClient() {
   if (!sql) {
-    sql = postgres(process.env.DATABASE_URL!);
+    sql = postgres(process.env.DATABASE_URL!, {
+      idle_timeout: 20,
+      max_lifetime: 60 * 30,
+      connect_timeout: 10,
+    });
   }
   return sql;
 }
