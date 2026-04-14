@@ -1,14 +1,7 @@
 <script>
   let { data } = $props();
 
-  function fmt(n) {
-    if (!n) return '—';
-    return new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(parseFloat(n));
-  }
-
-  function fmtCurrency(amount, currency) {
-    return new Intl.NumberFormat('en-US', { style: 'currency', currency: currency || 'EUR' }).format(amount);
-  }
+  import { formatNumber, formatCurrency, formatDateShort } from '$lib/format';
 </script>
 
 <svelte:head>
@@ -29,7 +22,7 @@
         <div class="stat-card">
           <div class="text-[10px] uppercase tracking-[0.12em] mb-1" style="color: var(--text3);">Total {currency}</div>
           <div class="text-xl font-bold mono" style="color: {currency === 'EUR' ? 'var(--gold)' : 'var(--green)'};">
-            {fmtCurrency(total, currency)}
+            {formatCurrency(total, currency)}
           </div>
         </div>
       {/each}
@@ -92,8 +85,8 @@
             </div>
             <div class="text-right">
               {#if latestBalance}
-                <div class="text-sm font-bold mono" style="color: var(--gold);">{fmt(latestBalance.balance)}</div>
-                <div class="text-[10px]" style="color: var(--text3);">{latestBalance.currency} · {new Date(latestBalance.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</div>
+                <div class="text-sm font-bold mono" style="color: var(--gold);">{formatNumber(latestBalance.balance)}</div>
+                <div class="text-[10px]" style="color: var(--text3);">{latestBalance.currency} · {formatDateShort(latestBalance.date)}</div>
               {:else}
                 <div class="text-[10px]" style="color: var(--text3);">No data</div>
               {/if}

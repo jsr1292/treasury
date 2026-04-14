@@ -1,33 +1,28 @@
 <script>
+  import { formatNumber } from '$lib/format';
   let { data } = $props();
   let entity = $derived(data.entity);
   let children = $derived(data.children || []);
   let accounts = $derived(data.accounts || []);
+  const fmt = formatNumber;
 
-  // Add account form
   let showAddAccount = $state(false);
   let acctName = $state('');
   let acctType = $state('bank');
   let acctCurrency = $state('EUR');
-  $effect(() => { if (entity?.currency) acctCurrency = entity.currency; })
+  $effect(() => { if (entity?.currency) acctCurrency = entity.currency; });
   let acctBankName = $state('');
   let acctAccountNumber = $state('');
   let acctMaturity = $state('');
   let acctRate = $state('');
   let submitting = $state(false);
 
-  // Balance entry form
   let balanceAccountId = $state('');
   let balanceDate = $state(new Date().toISOString().split('T')[0]);
   let balanceAmount = $state('');
   let balanceNotes = $state('');
   let showBalanceForm = $state(false);
   let balanceSubmitting = $state(false);
-
-  function fmt(n) {
-    if (!n) return '—';
-    return new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(parseFloat(n));
-  }
 
   async function handleAddAccount(e) {
     e.preventDefault();
@@ -36,14 +31,9 @@
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        entityId: entity.id,
-        name: acctName,
-        type: acctType,
-        currency: acctCurrency,
-        bankName: acctBankName,
-        accountNumber: acctAccountNumber,
-        maturityDate: acctMaturity || undefined,
-        interestRate: acctRate || undefined,
+        entityId: entity.id, name: acctName, type: acctType, currency: acctCurrency,
+        bankName: acctBankName, accountNumber: acctAccountNumber,
+        maturityDate: acctMaturity || undefined, interestRate: acctRate || undefined,
       }),
     });
     if (res.ok) {
@@ -62,17 +52,11 @@
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        accountId: balanceAccountId,
-        date: balanceDate,
-        balance: balanceAmount,
-        currency: acctCurrency,
-        notes: balanceNotes,
+        accountId: balanceAccountId, date: balanceDate, balance: balanceAmount,
+        currency: acctCurrency, notes: balanceNotes,
       }),
     });
     if (res.ok) {
-      const entry = await res.json();
-      // Update the account's latest balance in the list
-      accounts = accounts.map(a => a.id === balanceAccountId ? { ...a, latestBalance: entry } : a);
       balanceAmount = ''; balanceNotes = '';
       showBalanceForm = false;
     }
@@ -93,7 +77,6 @@
   {#if entity}
     <a href="/entities" class="text-xs" style="color: var(--text3); letter-spacing: 0.1em;">← ENTITIES</a>
 
-    <!-- Header -->
     <div class="mt-3 mb-6">
       <div class="flex items-center gap-2 mb-1">
         <span class="text-sm">{entity.type === 'headquarters' ? '🏢' : entity.type === 'branch' ? '📍' : '🏗️'}</span>
@@ -103,13 +86,10 @@
       </div>
       <h1 class="text-2xl font-bold" style="color: var(--text);">{entity.name}</h1>
       <div class="text-xs mt-1" style="color: var(--text3);">
-        {entity.currency}
-        {#if entity.country} · {entity.country}{/if}
-        {#if entity.taxId} · {entity.taxId}{/if}
+        {entity.currency}{#if entity.country} · {entity.country}{/if}{#if entity.taxId} · {entity.taxId}{/if}
       </div>
     </div>
 
-    <!-- Children entities -->
     {#if children.length > 0}
       <div class="mb-6">
         <div class="text-[10px] font-bold uppercase tracking-[0.12em] mb-3" style="color: var(--text3);">Structure</div>
@@ -128,7 +108,6 @@
       </div>
     {/if}
 
-    <!-- Accounts -->
     <div class="mb-6">
       <div class="flex items-center justify-between mb-3">
         <div class="text-[10px] font-bold uppercase tracking-[0.12em]" style="color: var(--text3);">Accounts ({accounts.length})</div>
@@ -139,9 +118,9 @@
         </button>
       </div>
 
-      <!-- Add account form -->
       {#if showAddAccount}
         <div class="glass rounded-xl p-4 mb-4" style="border: 1px solid var(--glass-border);">
+          <div class="text-xs font-semibold mb-4" style="color: var(--gold); letter-spacing: 0.1em;">NEW ACCOUNT</div>
           <form onsubmit={handleAddAccount} class="space-y-3">
             <div>
               <label class="label" for="aname">Account Name</label>
@@ -163,13 +142,15 @@
                 <input id="acur" type="text" bind:value={acctCurrency} class="input" />
               </div>
             </div>
-            <div>
-              <label class="label" for="abank">Bank Name</label>
-              <input id="abank" type="text" bind:value={acctBankName} placeholder="Banco Santander" class="input" />
-            </div>
-            <div>
-              <label class="label" for="anum">Account Number / IBAN</label>
-              <input id="anum" type="text" bind:value={acctAccountNumber} placeholder="ES12 3456..." class="input" />
+            <div class="grid grid-cols-2 gap-3">
+              <div>
+                <label class="label" for="abank">Bank Name</label>
+                <input id="abank" type="text" bind:value={acctBankName} placeholder="Banco Santander" class="input" />
+              </div>
+              <div>
+                <label class="label" for="anum">IBAN / Account Number</label>
+                <input id="anum" type="text" bind:value={acctAccountNumber} placeholder="ES12 3456..." class="input" />
+              </div>
             </div>
             {#if acctType === 'deposit' || acctType === 'bond'}
               <div class="grid grid-cols-2 gap-3">
@@ -179,7 +160,7 @@
                 </div>
                 <div>
                   <label class="label" for="arate">Interest Rate (%)</label>
-                  <input id="arate" type="text" bind:value={acctRate} placeholder="3.50" class="input" />
+                  <input id="arate" type="text" bind:value={acctRate} placeholder="3,50" class="input mono" />
                 </div>
               </div>
             {/if}
@@ -191,7 +172,6 @@
         </div>
       {/if}
 
-      <!-- Balance entry form -->
       {#if showBalanceForm}
         <div class="glass rounded-xl p-4 mb-4" style="border: 1px solid rgba(201,168,76,0.3);">
           <div class="text-xs font-bold mb-3" style="color: var(--gold); letter-spacing: 0.1em;">ENTER BALANCE</div>
@@ -203,7 +183,7 @@
               </div>
               <div>
                 <label class="label" for="bamt">Balance ({acctCurrency})</label>
-                <input id="bamt" type="text" bind:value={balanceAmount} placeholder="15000.00" required class="input mono" />
+                <input id="bamt" type="text" bind:value={balanceAmount} placeholder="15000,00" required class="input mono" />
               </div>
             </div>
             <div>
