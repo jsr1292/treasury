@@ -1,0 +1,25 @@
+@import 'tailwindcss';
+
+:root {
+  --bg-dark: #0a0a0f;
+  --bg-card: #13131a;
+  --bg-card-hover: #1a1a25;
+  --border: #1e1e2e;
+  --accent: #3b82f6;
+  --accent-dim: #3b82f620;
+  --green: #30d158;
+  --red: #ff2d55;
+  --yellow: #ffd60a;
+  --text-primary: #f0f0f5;
+  --text-secondary: #8888a0;
+}
+
+body {
+  font-family: 'Inter', -apple-system, sans-serif;
+  background: var(--bg-dark);
+  color: var(--text-primary);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Number formatting */
+.mono { font-family: 'JetBrains Mono', monospace; }
