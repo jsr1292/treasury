@@ -31,8 +31,9 @@
       document.head.appendChild(meta);
     }
     meta.content = color;
-    // Update html background so status bar matches
+    // Update both html AND body — iOS Safari uses body for status bar
     document.documentElement.style.background = color;
+    document.body.style.background = color;
   }
 
   $effect(() => {
