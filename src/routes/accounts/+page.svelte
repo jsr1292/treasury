@@ -1,7 +1,6 @@
 <script>
   let { data } = $props();
-  const typeIcons = { bank: '🏦', savings: '💰', deposit: '📋', bond: '📜', other: '💳' };
-  const typeBadges = { bank: 'badge-blue', savings: 'badge-green', deposit: 'badge-green', bond: 'badge-gold', other: 'badge-gold' };
+  import { ACCOUNT_TYPES } from '$lib/constants';
 </script>
 
 <svelte:head>
@@ -15,7 +14,6 @@
   </div>
 
   {#if data.accounts.length > 0}
-    <!-- Desktop table -->
     <div class="stat-card hidden md:block" style="padding: 0; overflow: hidden;">
       <table class="data-table">
         <thead>
@@ -30,26 +28,25 @@
         </thead>
         <tbody>
           {#each data.accounts as { account, entity }}
+            {@const cfg = ACCOUNT_TYPES[account.type] || ACCOUNT_TYPES.other}
             <tr>
               <td><a href="/accounts/{account.id}" class="no-underline" style="color: var(--text); font-weight: 500;">{account.name}</a></td>
               <td style="color: var(--text3);">{entity.name}</td>
-              <td><span class="badge {typeBadges[account.type] || 'badge-gold'}">{account.type}</span></td>
+              <td><span class="badge {cfg.badge}">{cfg.icon} {cfg.label}</span></td>
               <td style="color: var(--text3);">{account.bankName || '—'}</td>
               <td class="mono" style="color: var(--text3);">{account.currency}</td>
-              <td>
-                <span class="badge {account.isActive ? 'badge-green' : 'badge-red'}">{account.isActive ? 'Active' : 'Inactive'}</span>
-              </td>
+              <td><span class="badge {account.isActive ? 'badge-green' : 'badge-red'}">{account.isActive ? 'Active' : 'Inactive'}</span></td>
             </tr>
           {/each}
         </tbody>
       </table>
     </div>
 
-    <!-- Mobile cards -->
     <div class="md:hidden space-y-2">
       {#each data.accounts as { account, entity }}
+        {@const cfg = ACCOUNT_TYPES[account.type] || ACCOUNT_TYPES.other}
         <a href="/accounts/{account.id}" class="account-row block no-underline">
-          <div class="text-base">{typeIcons[account.type] || '💳'}</div>
+          <div class="text-base">{cfg.icon}</div>
           <div class="flex-1 min-w-0">
             <div class="text-sm font-semibold truncate" style="color: var(--text);">{account.name}</div>
             <div class="text-[10px]" style="color: var(--text3);">{entity.name} · {account.currency}{#if account.bankName} · {account.bankName}{/if}</div>

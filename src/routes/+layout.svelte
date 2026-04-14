@@ -1,6 +1,7 @@
 <script>
   import '../app.css';
   import { page } from '$app/stores';
+  import Toast from '$lib/components/Toast.svelte';
   let { children } = $props();
   let currentPath = $derived($page.url.pathname);
 
@@ -71,7 +72,13 @@
   // Flatten nav for mobile
   const navFlat = navSections.flatMap(s => s.items);
 
-  // Mobile: show first 4 + More
+  // Expose toast globally so pages can use it
+  let toastRef;
+  $effect(() => {
+    if (typeof window !== 'undefined' && toastRef) {
+      window.__toast = toastRef.show;
+    }
+  });
   let mobileMoreOpen = $state(false);
   const mobilePrimary = navFlat.slice(0, 4);
   const mobileSecondary = navFlat.slice(4);
@@ -86,6 +93,7 @@
 </script>
 
 <div class="min-h-screen" style="background: var(--bg-dark); color: var(--text);">
+  <Toast bind:this={toastRef} />
   <div class="flex min-h-screen">
     <!-- Desktop sidebar -->
     <aside class="hidden md:flex flex-col w-60 shrink-0" style="background: var(--bg2); border-right: 1px solid var(--glass-border); height: 100vh; position: sticky; top: 0;">

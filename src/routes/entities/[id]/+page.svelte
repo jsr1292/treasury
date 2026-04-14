@@ -1,10 +1,10 @@
 <script>
-  import { formatNumber } from '$lib/format';
+  import { formatNumber, formatCurrency } from '$lib/format';
+  import { CURRENCIES, ACCOUNT_TYPES } from '$lib/constants';
   let { data } = $props();
   let entity = $derived(data.entity);
   let children = $derived(data.children || []);
   let accounts = $derived(data.accounts || []);
-  const fmt = formatNumber;
 
   let showAddAccount = $state(false);
   let acctName = $state('');
@@ -41,6 +41,9 @@
       accounts = [...accounts, account];
       acctName = ''; acctBankName = ''; acctAccountNumber = ''; acctMaturity = ''; acctRate = '';
       showAddAccount = false;
+      window.__toast?.('Account created');
+    } else {
+      window.__toast?.('Failed to create account', 'error');
     }
     submitting = false;
   }
@@ -57,8 +60,19 @@
       }),
     });
     if (res.ok) {
+      const result = await res.json();
       balanceAmount = ''; balanceNotes = '';
       showBalanceForm = false;
+      // Check if anomaly was triggered
+      if (result.anomaly) {
+        window.__toast?.('Balance saved — anomaly flagged ⚠️', 'warning');
+      } else {
+        window.__toast?.('Balance entry saved');
+      }
+      // Reload to show updated data
+      setTimeout(() => window.location.reload(), 800);
+    } else {
+      window.__toast?.('Failed to save balance', 'error');
     }
     balanceSubmitting = false;
   }
@@ -73,18 +87,16 @@
   <title>{entity?.name || 'Entity'} — Treasury</title>
 </svelte:head>
 
-<div class="max-w-4xl mx-auto px-6 py-6">
+<div class="max-w-5xl mx-auto page-desktop">
   {#if entity}
-    <a href="/entities" class="text-xs" style="color: var(--text3); letter-spacing: 0.1em;">← ENTITIES</a>
+    <a href="/entities" class="text-xs no-underline" style="color: var(--text3); letter-spacing: 0.1em;">← ENTITIES</a>
 
     <div class="mt-3 mb-6">
       <div class="flex items-center gap-2 mb-1">
         <span class="text-sm">{entity.type === 'headquarters' ? '🏢' : entity.type === 'branch' ? '📍' : '🏗️'}</span>
-        <span class="text-[10px] uppercase font-bold tracking-[0.12em]" style="color: {entity.type === 'headquarters' ? 'var(--gold)' : entity.type === 'branch' ? 'var(--green)' : 'var(--blue)'};">
-          {entity.type}
-        </span>
+        <span class="badge {entity.type === 'headquarters' ? 'badge-gold' : entity.type === 'branch' ? 'badge-blue' : 'badge-green'}">{entity.type === 'headquarters' ? 'Headquarters' : entity.type === 'branch' ? 'Branch' : 'Subsidiary'}</span>
       </div>
-      <h1 class="text-2xl font-bold" style="color: var(--text);">{entity.name}</h1>
+      <h1 class="text-xl font-bold" style="color: var(--text);">{entity.name}</h1>
       <div class="text-xs mt-1" style="color: var(--text3);">
         {entity.currency}{#if entity.country} · {entity.country}{/if}{#if entity.taxId} · {entity.taxId}{/if}
       </div>
@@ -92,11 +104,11 @@
 
     {#if children.length > 0}
       <div class="mb-6">
-        <div class="text-[10px] font-bold uppercase tracking-[0.12em] mb-3" style="color: var(--text3);">Structure</div>
+        <div class="text-[10px] font-semibold uppercase tracking-[0.1em] mb-3" style="color: var(--text3);">Structure ({children.length})</div>
         <div class="space-y-2">
           {#each children as child}
             <a href="/entities/{child.id}" class="account-row block no-underline">
-              <div class="text-sm">{child.type === 'branch' ? '📍' : '🏗️'}</div>
+              <span>{child.type === 'branch' ? '📍' : '🏗️'}</span>
               <div class="flex-1">
                 <div class="text-sm font-semibold" style="color: var(--text);">{child.name}</div>
                 <div class="text-[10px]" style="color: var(--text3);">{child.type.toUpperCase()} · {child.currency}</div>
@@ -110,7 +122,7 @@
 
     <div class="mb-6">
       <div class="flex items-center justify-between mb-3">
-        <div class="text-[10px] font-bold uppercase tracking-[0.12em]" style="color: var(--text3);">Accounts ({accounts.length})</div>
+        <div class="text-[10px] font-semibold uppercase tracking-[0.1em]" style="color: var(--text3);">Accounts ({accounts.length})</div>
         <button onclick={() => showAddAccount = !showAddAccount}
           class="text-[10px] font-bold tracking-[0.1em] px-3 py-1.5 rounded-lg"
           style="color: var(--gold); background: rgba(201,168,76,0.1); border: 1px solid rgba(201,168,76,0.2);">
@@ -119,7 +131,7 @@
       </div>
 
       {#if showAddAccount}
-        <div class="glass rounded-xl p-4 mb-4" style="border: 1px solid var(--glass-border);">
+        <div class="stat-card mb-4" style="border: 1px solid rgba(201,168,76,0.2);">
           <div class="text-xs font-semibold mb-4" style="color: var(--gold); letter-spacing: 0.1em;">NEW ACCOUNT</div>
           <form onsubmit={handleAddAccount} class="space-y-3">
             <div>
@@ -130,16 +142,18 @@
               <div>
                 <label class="label" for="atype">Type</label>
                 <select id="atype" bind:value={acctType} class="input">
-                  <option value="bank">Bank Account</option>
-                  <option value="savings">Savings</option>
-                  <option value="deposit">Deposit</option>
-                  <option value="bond">Bond</option>
-                  <option value="other">Other</option>
+                  {#each Object.entries(ACCOUNT_TYPES) as [key, cfg]}
+                    <option value={key}>{cfg.icon} {cfg.label}</option>
+                  {/each}
                 </select>
               </div>
               <div>
                 <label class="label" for="acur">Currency</label>
-                <input id="acur" type="text" bind:value={acctCurrency} class="input" />
+                <select id="acur" bind:value={acctCurrency} class="input">
+                  {#each CURRENCIES as cur}
+                    <option value={cur}>{cur}</option>
+                  {/each}
+                </select>
               </div>
             </div>
             <div class="grid grid-cols-2 gap-3">
@@ -160,7 +174,7 @@
                 </div>
                 <div>
                   <label class="label" for="arate">Interest Rate (%)</label>
-                  <input id="arate" type="text" bind:value={acctRate} placeholder="3,50" class="input mono" />
+                  <input id="arate" type="text" bind:value={acctRate} placeholder="3.50" class="input mono" />
                 </div>
               </div>
             {/if}
@@ -173,7 +187,7 @@
       {/if}
 
       {#if showBalanceForm}
-        <div class="glass rounded-xl p-4 mb-4" style="border: 1px solid rgba(201,168,76,0.3);">
+        <div class="stat-card mb-4" style="border: 1px solid rgba(201,168,76,0.3);">
           <div class="text-xs font-bold mb-3" style="color: var(--gold); letter-spacing: 0.1em;">ENTER BALANCE</div>
           <form onsubmit={handleBalance} class="space-y-3">
             <div class="grid grid-cols-2 gap-3">
@@ -187,7 +201,7 @@
               </div>
             </div>
             <div>
-              <label class="label" for="bnotes">Notes (optional)</label>
+              <label class="label" for="bnotes">Notes</label>
               <input id="bnotes" type="text" bind:value={balanceNotes} placeholder="End of month balance" class="input" />
             </div>
             <div class="flex gap-2">
@@ -205,30 +219,63 @@
       {/if}
 
       {#if accounts.length > 0}
-        <div class="space-y-2">
+        <!-- Desktop table -->
+        <div class="stat-card hidden md:block" style="padding: 0; overflow: hidden;">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Account</th>
+                <th>Type</th>
+                <th>Bank</th>
+                <th>Currency</th>
+                <th style="text-align: right;">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {#each accounts as account}
+                {@const cfg = ACCOUNT_TYPES[account.type] || ACCOUNT_TYPES.other}
+                <tr>
+                  <td><a href="/accounts/{account.id}" class="no-underline" style="color: var(--text); font-weight: 500;">{account.name}</a></td>
+                  <td><span class="badge {cfg.badge}">{cfg.icon} {cfg.label}</span></td>
+                  <td style="color: var(--text3);">{account.bankName || '—'}</td>
+                  <td class="mono" style="color: var(--text3);">{account.currency}</td>
+                  <td style="text-align: right;">
+                    <button onclick={() => startBalance(account.id)}
+                      class="text-[10px] font-bold px-3 py-1.5 rounded"
+                      style="color: var(--gold); background: rgba(201,168,76,0.08); border: 1px solid rgba(201,168,76,0.15); cursor: pointer;">
+                      + Balance
+                    </button>
+                  </td>
+                </tr>
+              {/each}
+            </tbody>
+          </table>
+        </div>
+
+        <!-- Mobile cards -->
+        <div class="md:hidden space-y-2">
           {#each accounts as account}
+            {@const cfg = ACCOUNT_TYPES[account.type] || ACCOUNT_TYPES.other}
             <div class="account-row">
-              <div class="text-base">
-                {#if account.type === 'bank'}🏦{:else if account.type === 'savings'}💰{:else if account.type === 'deposit'}📋{:else if account.type === 'bond'}📜{:else}💳{/if}
-              </div>
+              <div class="text-base">{cfg.icon}</div>
               <div class="flex-1 min-w-0">
                 <div class="text-sm font-semibold truncate" style="color: var(--text);">{account.name}</div>
                 <div class="text-[10px]" style="color: var(--text3);">
-                  {account.type.toUpperCase()} · {account.currency}
+                  <span class="badge {cfg.badge}" style="font-size: 9px;">{cfg.label}</span>
                   {#if account.bankName} · {account.bankName}{/if}
                 </div>
               </div>
               <button onclick={() => startBalance(account.id)}
                 class="text-[10px] font-bold px-2.5 py-1.5 rounded-lg"
-                style="color: var(--gold); background: rgba(201,168,76,0.08); border: 1px solid rgba(201,168,76,0.15); letter-spacing: 0.08em;">
-                + BALANCE
+                style="color: var(--gold); background: rgba(201,168,76,0.08); border: 1px solid rgba(201,168,76,0.15); cursor: pointer;">
+                + BAL
               </button>
             </div>
           {/each}
         </div>
       {:else}
         <div class="stat-card text-center py-8">
-          <div style="color: var(--text3); font-size: 12px;">No accounts yet. Add one above.</div>
+          <div style="color: var(--text3); font-size: 12px;">No accounts yet. Click "+ ADD" to create one.</div>
         </div>
       {/if}
     </div>

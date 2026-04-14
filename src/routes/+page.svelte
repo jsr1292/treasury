@@ -1,8 +1,7 @@
 <script>
   let { data } = $props();
   import { formatNumber, formatCurrency, formatDateShort } from '$lib/format';
-
-  const typeIcons = { bank: '🏦', savings: '💰', deposit: '📋', bond: '📜', other: '💳' };
+  import { ACCOUNT_TYPES } from '$lib/constants';
 </script>
 
 <svelte:head>
@@ -10,7 +9,6 @@
 </svelte:head>
 
 <div class="max-w-5xl mx-auto page-desktop">
-  <!-- KPI Row -->
   {#if Object.keys(data.totalsByCurrency).length > 0}
     <div class="grid gap-4 mb-6" style="grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));">
       {#each Object.entries(data.totalsByCurrency) as [currency, total]}
@@ -19,26 +17,27 @@
             <span class="text-[10px] font-medium uppercase tracking-[0.08em]" style="color: var(--text3);">Total {currency}</span>
             <span class="badge badge-gold">{currency}</span>
           </div>
-          <div class="text-2xl font-bold mono" style="color: {currency === 'EUR' ? 'var(--gold)' : 'var(--green)'};">
+          <div class="text-2xl font-bold mono" style="color: {total >= 0 ? (currency === 'EUR' ? 'var(--gold)' : 'var(--green)') : 'var(--red)'};">
             {formatCurrency(total, currency)}
           </div>
         </div>
       {/each}
 
-      <!-- Quick stats -->
       <div class="stat-card">
-        <div class="text-[10px] font-medium uppercase tracking-[0.08em] mb-2" style="color: var(--text3);">Accounts</div>
+        <div class="text-[10px] font-medium uppercase tracking-[0.08em] mb-2" style="color: var(--text3);">Overview</div>
         <div class="flex items-end gap-4">
           <div>
             <div class="text-2xl font-bold mono" style="color: var(--text);">{data.balances.length}</div>
-            <div class="text-[10px]" style="color: var(--text3);">Total</div>
+            <div class="text-[10px]" style="color: var(--text3);">Accounts</div>
           </div>
           <div>
             <div class="text-lg font-bold mono" style="color: var(--green);">{data.balances.filter(b => b.latestBalance).length}</div>
             <div class="text-[10px]" style="color: var(--text3);">Active</div>
           </div>
           <div>
-            <div class="text-lg font-bold mono" style="color: {data.anomalies.length > 0 ? 'var(--red)' : 'var(--text3)'};">{data.anomalies.length}</div>
+            <div class="text-lg font-bold mono" style="color: {data.anomalies.length > 0 ? 'var(--red)' : 'var(--text3)'};">
+              {data.anomalies.length}
+            </div>
             <div class="text-[10px]" style="color: var(--text3);">Alerts</div>
           </div>
         </div>
@@ -55,10 +54,9 @@
     </div>
   {/if}
 
-  <!-- Anomalies -->
   {#if data.anomalies.length > 0}
     <div class="mb-6">
-      <div class="text-[10px] font-semibold uppercase tracking-[0.1em] mb-3" style="color: var(--red);">⚠ Alerts</div>
+      <div class="text-[10px] font-semibold uppercase tracking-[0.1em] mb-3" style="color: var(--red);">⚠ Balance Alerts</div>
       <div class="space-y-2">
         {#each data.anomalies as anomaly}
           <div class="stat-card flex items-center gap-3" style="border-left: 3px solid {anomaly.severity === 'critical' ? 'var(--red)' : '#ffd70a'};">
@@ -72,7 +70,6 @@
     </div>
   {/if}
 
-  <!-- Account balances table -->
   {#if data.balances.length > 0}
     <div>
       <div class="text-[10px] font-semibold uppercase tracking-[0.1em] mb-3" style="color: var(--text3);">Cash Position by Account</div>
@@ -92,6 +89,8 @@
           </thead>
           <tbody>
             {#each data.balances as { account, entity, latestBalance }}
+              {@const cfg = ACCOUNT_TYPES[account.type] || ACCOUNT_TYPES.other}
+              {@const isNegative = latestBalance && parseFloat(latestBalance.balance) < 0}
               <tr>
                 <td>
                   <a href="/accounts/{account.id}" class="no-underline" style="color: var(--text); font-weight: 500;">
@@ -99,10 +98,12 @@
                   </a>
                 </td>
                 <td style="color: var(--text3);">{entity.name}</td>
-                <td><span class="badge badge-{account.type === 'bank' ? 'blue' : account.type === 'deposit' ? 'green' : account.type === 'bond' ? 'gold' : 'gold'}">{account.type}</span></td>
+                <td><span class="badge {cfg.badge}">{cfg.icon} {cfg.label}</span></td>
                 <td style="text-align: right;" class="mono font-semibold">
                   {#if latestBalance}
-                    <span style="color: var(--gold);">{formatNumber(latestBalance.balance)}</span>
+                    <span style="color: {isNegative ? 'var(--red)' : 'var(--gold)'};">
+                      {isNegative ? '' : ''}{formatNumber(latestBalance.balance)}
+                    </span>
                   {:else}
                     <span style="color: var(--text3);">—</span>
                   {/if}
@@ -118,15 +119,19 @@
       <!-- Mobile cards -->
       <div class="md:hidden space-y-2">
         {#each data.balances as { account, entity, latestBalance }}
+          {@const cfg = ACCOUNT_TYPES[account.type] || ACCOUNT_TYPES.other}
+          {@const isNegative = latestBalance && parseFloat(latestBalance.balance) < 0}
           <a href="/accounts/{account.id}" class="account-row block no-underline">
-            <div class="text-base">{typeIcons[account.type] || '💳'}</div>
+            <div class="text-base">{cfg.icon}</div>
             <div class="flex-1 min-w-0">
               <div class="text-sm font-semibold truncate" style="color: var(--text);">{account.name}</div>
               <div class="text-[10px]" style="color: var(--text3);">{entity.name} · {account.currency}</div>
             </div>
             <div class="text-right">
               {#if latestBalance}
-                <div class="text-sm font-bold mono" style="color: var(--gold);">{formatNumber(latestBalance.balance)}</div>
+                <div class="text-sm font-bold mono" style="color: {isNegative ? 'var(--red)' : 'var(--gold)'};">
+                  {formatNumber(latestBalance.balance)}
+                </div>
                 <div class="text-[10px]" style="color: var(--text3);">{formatDateShort(latestBalance.date)}</div>
               {:else}
                 <div class="text-[10px]" style="color: var(--text3);">No data</div>

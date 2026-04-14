@@ -1,5 +1,6 @@
 <script>
   import { formatNumber, formatCurrency, formatDate, formatDateShort } from '$lib/format';
+  import { ACCOUNT_TYPES } from '$lib/constants';
   let { data } = $props();
 
   let account = $derived(data.account);
@@ -15,6 +16,7 @@
   let submitting = $state(false);
 
   const typeIcons = { bank: '🏦', savings: '💰', deposit: '📋', bond: '📜', other: '💳' };
+  const typeLabels = { bank: 'Bank Account', savings: 'Savings', deposit: 'Deposit', bond: 'Bond', other: 'Other' };
 
   async function handleBalance(e) {
     e.preventDefault();
@@ -31,7 +33,10 @@
       }),
     });
     if (res.ok) {
-      window.location.reload();
+      window.__toast?.('Balance entry saved');
+      setTimeout(() => window.location.reload(), 600);
+    } else {
+      window.__toast?.('Failed to save balance', 'error');
     }
     submitting = false;
   }
@@ -77,7 +82,7 @@
     <div class="mt-3 mb-6">
       <div class="flex items-center gap-2 mb-1">
         <span class="text-lg">{typeIcons[account.type] || '💳'}</span>
-        <span class="text-[10px] uppercase font-bold tracking-[0.12em]" style="color: var(--text3);">{account.type} · {account.currency}</span>
+        <span class="badge {account.type === 'bank' ? 'badge-blue' : account.type === 'deposit' ? 'badge-green' : account.type === 'bond' ? 'badge-gold' : 'badge-gold'}">{ACCOUNT_TYPES[account.type]?.icon} {typeLabels[account.type] || account.type}</span> · {account.currency}
       </div>
       <h1 class="text-2xl font-bold" style="color: var(--text);">{account.name}</h1>
       <div class="text-xs mt-1" style="color: var(--text3);">
@@ -93,7 +98,7 @@
         <div>
           <div class="text-[10px] uppercase tracking-[0.12em] mb-1" style="color: var(--text3);">Current Balance</div>
           <div class="text-3xl font-bold mono" style="color: var(--gold);">
-            {formatCurrency(stats.latestBalance, account.currency)}
+            <span style="color: {stats.latestBalance < 0 ? 'var(--red)' : 'var(--gold)'};">{formatCurrency(stats.latestBalance, account.currency)}</span>
           </div>
           {#if stats.totalEntries > 1}
             <div class="text-xs mt-1" style="color: {stats.totalChange >= 0 ? 'var(--green)' : 'var(--red)'};">
