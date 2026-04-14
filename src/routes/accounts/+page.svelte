@@ -1,20 +1,52 @@
 <script>
   let { data } = $props();
   const typeIcons = { bank: '🏦', savings: '💰', deposit: '📋', bond: '📜', other: '💳' };
+  const typeBadges = { bank: 'badge-blue', savings: 'badge-green', deposit: 'badge-green', bond: 'badge-gold', other: 'badge-gold' };
 </script>
 
 <svelte:head>
   <title>Accounts — Treasury</title>
 </svelte:head>
 
-<div class="max-w-4xl mx-auto px-6 py-6">
-  <div class="mb-6">
-    <div class="text-[10px] uppercase tracking-[0.12em] mb-1" style="color: var(--text3);">Financial instruments</div>
-    <h1 class="text-2xl font-bold" style="color: var(--gold);">🏦 Accounts</h1>
+<div class="max-w-5xl mx-auto page-desktop">
+  <div class="mb-5">
+    <div class="text-[10px] uppercase tracking-[0.1em] mb-1" style="color: var(--text3);">Financial Instruments</div>
+    <h1 class="text-xl font-bold" style="color: var(--text);">Accounts</h1>
   </div>
 
   {#if data.accounts.length > 0}
-    <div class="space-y-2">
+    <!-- Desktop table -->
+    <div class="stat-card hidden md:block" style="padding: 0; overflow: hidden;">
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>Account</th>
+            <th>Entity</th>
+            <th>Type</th>
+            <th>Bank</th>
+            <th>Currency</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          {#each data.accounts as { account, entity }}
+            <tr>
+              <td><a href="/accounts/{account.id}" class="no-underline" style="color: var(--text); font-weight: 500;">{account.name}</a></td>
+              <td style="color: var(--text3);">{entity.name}</td>
+              <td><span class="badge {typeBadges[account.type] || 'badge-gold'}">{account.type}</span></td>
+              <td style="color: var(--text3);">{account.bankName || '—'}</td>
+              <td class="mono" style="color: var(--text3);">{account.currency}</td>
+              <td>
+                <span class="badge {account.isActive ? 'badge-green' : 'badge-red'}">{account.isActive ? 'Active' : 'Inactive'}</span>
+              </td>
+            </tr>
+          {/each}
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Mobile cards -->
+    <div class="md:hidden space-y-2">
       {#each data.accounts as { account, entity }}
         <a href="/accounts/{account.id}" class="account-row block no-underline">
           <div class="text-base">{typeIcons[account.type] || '💳'}</div>
@@ -22,9 +54,7 @@
             <div class="text-sm font-semibold truncate" style="color: var(--text);">{account.name}</div>
             <div class="text-[10px]" style="color: var(--text3);">{entity.name} · {account.currency}{#if account.bankName} · {account.bankName}{/if}</div>
           </div>
-          <div class="text-[10px]" style="color: {account.isActive ? 'var(--green)' : 'var(--text3)'};">
-            {account.isActive ? 'ACTIVE' : 'INACTIVE'}
-          </div>
+          <span class="badge {account.isActive ? 'badge-green' : 'badge-red'}">{account.isActive ? 'Active' : 'Off'}</span>
         </a>
       {/each}
     </div>
