@@ -31,6 +31,12 @@ export async function getAllAccounts() {
     .orderBy(entities.name, accounts.name);
 }
 
+export async function getAccountsByEntity(entityId) {
+  return db.select().from(accounts)
+    .where(eq(accounts.entityId, entityId))
+    .orderBy(accounts.name);
+}
+
 export async function createAccount(data) {
   const [account] = await db.insert(accounts).values({
     entityId: data.entityId,
