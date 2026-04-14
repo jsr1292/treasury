@@ -230,3 +230,10 @@ select.input {
     padding: 28px 32px;
   }
 }
+
+/* Mobile padding */
+@media (max-width: 767px) {
+  .page-desktop {
+    padding: 16px 14px;
+  }
+}
