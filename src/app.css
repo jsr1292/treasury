@@ -1,5 +1,6 @@
 @import 'tailwindcss';
 
+/* ── Dark Theme (default) ── */
 :root {
   --bg-dark: #07090f;
   --bg2: #0d1120;
@@ -16,6 +17,33 @@
   --text: #d4dce8;
   --text2: #b0c0d8;
   --text3: #8096b4;
+  --input-bg: rgba(255, 255, 255, 0.04);
+  --input-border: rgba(255, 255, 255, 0.08);
+  --input-focus: rgba(201, 168, 76, 0.4);
+  --shadow: rgba(0, 0, 0, 0.3);
+}
+
+/* ── Light Theme ── */
+[data-theme="light"] {
+  --bg-dark: #f4f1eb;
+  --bg2: #ebe7df;
+  --bg-card: #ffffff;
+  --bg-card-hover: #f9f7f3;
+  --border: #e0dbd2;
+  --glass: rgba(255, 255, 255, 0.82);
+  --glass-border: rgba(0, 0, 0, 0.08);
+  --gold: #9a7b2e;
+  --gold2: #b8943f;
+  --green: #0d9f6e;
+  --red: #d63652;
+  --blue: #2563eb;
+  --text: #1a1d24;
+  --text2: #3d4250;
+  --text3: #7a7f8e;
+  --input-bg: rgba(0, 0, 0, 0.03);
+  --input-border: rgba(0, 0, 0, 0.1);
+  --input-focus: rgba(154, 123, 46, 0.4);
+  --shadow: rgba(0, 0, 0, 0.06);
 }
 
 body {
@@ -23,6 +51,7 @@ body {
   background: var(--bg-dark);
   color: var(--text);
   -webkit-font-smoothing: antialiased;
+  transition: background 0.3s, color 0.3s;
 }
 
 /* Glass panel effect */
@@ -35,9 +64,13 @@ body {
 
 /* Gold gradient button */
 .btn-gold {
-  background: linear-gradient(135deg, var(--gold), #b8943f);
-  color: var(--bg-dark);
+  background: linear-gradient(135deg, var(--gold), var(--gold2));
+  color: #fff;
   font-weight: 700;
+}
+
+[data-theme="light"] .btn-gold {
+  color: #fff;
 }
 
 .btn-gold:hover {
@@ -48,17 +81,17 @@ body {
 .input {
   width: 100%;
   padding: 10px 14px;
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: var(--input-bg);
+  border: 1px solid var(--input-border);
   border-radius: 8px;
   color: var(--text);
   font-size: 13px;
   outline: none;
-  transition: border-color 0.15s;
+  transition: border-color 0.15s, background 0.2s;
 }
 
 .input:focus {
-  border-color: rgba(201, 168, 76, 0.4);
+  border-color: var(--input-focus);
 }
 
 .input::placeholder {
@@ -84,6 +117,8 @@ body {
   border: 1px solid var(--glass-border);
   border-radius: 12px;
   padding: 16px;
+  box-shadow: 0 1px 3px var(--shadow);
+  transition: background 0.3s, border-color 0.3s;
 }
 
 /* Account row */
@@ -95,7 +130,7 @@ body {
   background: var(--bg-card);
   border: 1px solid var(--glass-border);
   border-radius: 12px;
-  transition: border-color 0.15s;
+  transition: border-color 0.15s, background 0.3s;
 }
 
 .account-row:hover {
@@ -120,4 +155,46 @@ body {
 ::-webkit-scrollbar {
   width: 0;
   display: none;
+}
+
+/* Theme toggle */
+.theme-toggle {
+  width: 44px;
+  height: 24px;
+  border-radius: 12px;
+  background: var(--glass-border);
+  border: 1px solid var(--glass-border);
+  position: relative;
+  cursor: pointer;
+  transition: background 0.3s;
+}
+
+[data-theme="light"] .theme-toggle {
+  background: rgba(201, 168, 76, 0.2);
+}
+
+.theme-toggle::after {
+  content: '';
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--text3);
+  transition: transform 0.3s, background 0.3s;
+}
+
+[data-theme="light"] .theme-toggle::after {
+  transform: translateX(20px);
+  background: var(--gold);
+}
+
+/* select styling */
+select.input {
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%238096b4' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+  padding-right: 32px;
 }

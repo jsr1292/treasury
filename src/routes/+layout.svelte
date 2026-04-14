@@ -4,6 +4,22 @@
   let { children } = $props();
   let currentPath = $derived($page.url.pathname);
 
+  // Theme — persisted in localStorage
+  let theme = $state('dark');
+  $effect(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('treasury-theme') || 'dark';
+      theme = saved;
+      document.documentElement.setAttribute('data-theme', saved);
+    }
+  });
+
+  function toggleTheme() {
+    theme = theme === 'dark' ? 'light' : 'dark';
+    document.documentElement.setAttribute('data-theme', theme);
+    localStorage.setItem('treasury-theme', theme);
+  }
+
   const nav = [
     {
       href: '/',
@@ -40,15 +56,13 @@
 
 <div class="min-h-screen" style="background: var(--bg-dark); color: var(--text);">
   <div class="flex min-h-screen">
-    <!-- Desktop sidebar (hidden on mobile) -->
+    <!-- Desktop sidebar -->
     <aside class="hidden md:flex flex-col w-56 shrink-0 glass" style="border-right: 1px solid var(--glass-border); height: 100vh; position: sticky; top: 0;">
-      <!-- Logo -->
       <div class="px-5 py-6" style="border-bottom: 1px solid var(--glass-border);">
         <div class="text-lg font-bold" style="color: var(--gold); letter-spacing: 0.05em;">📊 Treasury</div>
         <div class="text-[10px] mt-0.5" style="color: var(--text3); letter-spacing: 0.1em;">CASH MANAGEMENT</div>
       </div>
 
-      <!-- Nav items -->
       <nav class="flex-1 py-4 px-3 space-y-1">
         {#each nav as item}
           {@const isActive = currentPath === item.href}
@@ -61,19 +75,31 @@
         {/each}
       </nav>
 
-      <!-- Footer -->
+      <!-- Sidebar footer with theme toggle -->
       <div class="px-5 py-4" style="border-top: 1px solid var(--glass-border);">
-        <div class="text-[10px]" style="color: var(--text3);">Treasury v0.1</div>
+        <button onclick={toggleTheme} class="flex items-center gap-2 w-full no-underline" style="background: none; border: none; cursor: pointer;">
+          <span class="text-sm">{theme === 'dark' ? '🌙' : '☀️'}</span>
+          <span class="text-[10px] font-medium" style="color: var(--text3);">{theme === 'dark' ? 'Dark' : 'Light'} mode</span>
+        </button>
       </div>
     </aside>
 
     <!-- Main content -->
     <main class="flex-1 pb-20 md:pb-6 overflow-auto">
+      <!-- Mobile theme toggle (top right, desktop hidden) -->
+      <div class="md:hidden fixed top-3 right-3" style="z-index: 40;">
+        <button onclick={toggleTheme}
+          class="flex items-center justify-center w-9 h-9 rounded-full glass"
+          style="border: 1px solid var(--glass-border); cursor: pointer;">
+          <span class="text-sm">{theme === 'dark' ? '🌙' : '☀️'}</span>
+        </button>
+      </div>
+
       {@render children()}
     </main>
   </div>
 
-  <!-- Mobile bottom nav (hidden on desktop) -->
+  <!-- Mobile bottom nav -->
   <nav class="md:hidden fixed bottom-0 left-0 right-0 glass" style="border-top: 1px solid var(--glass-border); z-index: 50;">
     <div class="max-w-lg mx-auto flex">
       {#each nav as item}
