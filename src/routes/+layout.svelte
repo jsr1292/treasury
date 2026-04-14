@@ -53,6 +53,11 @@
   // Flatten nav for mobile
   const navFlat = navSections.flatMap(s => s.items);
 
+  // Mobile: show first 4 + More
+  let mobileMoreOpen = $state(false);
+  const mobilePrimary = navFlat.slice(0, 4);
+  const mobileSecondary = navFlat.slice(4);
+
   // Page title from path
   let pageTitle = $derived(() => {
     const path = currentPath;
@@ -139,17 +144,46 @@
   </div>
 
   <!-- Mobile bottom nav -->
-  <nav class="md:hidden fixed bottom-0 left-0 right-0 glass" style="border-top: 1px solid var(--glass-border); z-index: 50;">
-    <div class="max-w-lg mx-auto flex">
-      {#each navFlat as item}
-        {@const isActive = currentPath === item.href || (item.href !== '/' && currentPath.startsWith(item.href))}
-        <a href={item.href}
-          class="flex-1 flex flex-col items-center py-3 gap-1 no-underline transition-colors"
-          style="color: {isActive ? 'var(--gold)' : 'var(--text3)'};">
-          <div style="width: 22px; height: 22px;">{@html item.icon}</div>
-          <span style="font-size: 9px; letter-spacing: 0.1em; text-transform: uppercase; line-height: 1;">{item.label}</span>
-        </a>
-      {/each}
+  <nav class="md:hidden fixed bottom-0 left-0 right-0" style="z-index: 50;">
+    <!-- Expanded "More" panel -->
+    {#if mobileMoreOpen}
+      <div class="fixed inset-0" style="z-index: 49;" onclick={() => mobileMoreOpen = false}></div>
+      <div class="fixed bottom-16 left-3 right-3 glass rounded-xl p-2" style="z-index: 50; box-shadow: var(--shadow-lg); animation: slideUp 0.15s ease-out;">
+        {#each mobileSecondary as item}
+          {@const isActive = currentPath === item.href || (item.href !== '/' && currentPath.startsWith(item.href))}
+          <a href={item.href} onclick={() => mobileMoreOpen = false}
+            class="flex items-center gap-3 px-4 py-3 rounded-lg no-underline transition-colors"
+            style="color: {isActive ? 'var(--gold)' : 'var(--text)'}; background: {isActive ? 'rgba(201,168,76,0.08)' : 'transparent'};">
+            <div style="width: 18px; height: 18px;">{@html item.icon}</div>
+            <span style="font-size: 13px; font-weight: {isActive ? '500' : '400'};">{item.label}</span>
+          </a>
+        {/each}
+      </div>
+    {/if}
+
+    <div class="glass" style="border-top: 1px solid var(--glass-border);">
+      <div class="max-w-lg mx-auto flex">
+        {#each mobilePrimary as item}
+          {@const isActive = currentPath === item.href || (item.href !== '/' && currentPath.startsWith(item.href))}
+          <a href={item.href}
+            class="flex-1 flex flex-col items-center py-3 gap-1 no-underline transition-colors"
+            style="color: {isActive ? 'var(--gold)' : 'var(--text3)'};">
+            <div style="width: 22px; height: 22px;">{@html item.icon}</div>
+            <span style="font-size: 9px; letter-spacing: 0.1em; text-transform: uppercase; line-height: 1;">{item.label}</span>
+          </a>
+        {/each}
+        <!-- More button -->
+        {#if mobileSecondary.length > 0}
+          <button onclick={() => mobileMoreOpen = !mobileMoreOpen}
+            class="flex-1 flex flex-col items-center py-3 gap-1 no-underline transition-colors"
+            style="color: {mobileMoreOpen ? 'var(--gold)' : 'var(--text3)'}; background: none; border: none; cursor: pointer;">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="width: 22px; height: 22px;">
+              <circle cx="12" cy="5" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="12" cy="19" r="1"/>
+            </svg>
+            <span style="font-size: 9px; letter-spacing: 0.1em; text-transform: uppercase; line-height: 1;">More</span>
+          </button>
+        {/if}
+      </div>
     </div>
   </nav>
 </div>
@@ -158,5 +192,9 @@
   aside :global(svg), nav :global(svg) {
     width: inherit;
     height: inherit;
+  }
+  @keyframes slideUp {
+    from { transform: translateY(8px); opacity: 0; }
+    to { transform: translateY(0); opacity: 1; }
   }
 </style>
