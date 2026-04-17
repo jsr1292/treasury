@@ -120,6 +120,27 @@ export async function createBalanceEntry(data) {
   return entry;
 }
 
+// Balance history for trend charts
+export async function getBalanceHistory(accountId: string, days = 30) {
+  const cutoff = new Date();
+  cutoff.setDate(cutoff.getDate() - days);
+
+  const rows = await db.select({
+    date: balanceEntries.date,
+    balance: balanceEntries.balance,
+    currency: balanceEntries.currency,
+  })
+    .from(balanceEntries)
+    .where(eq(balanceEntries.accountId, accountId))
+    .orderBy(balanceEntries.date);
+
+  return rows.map(r => ({
+    date: r.date,
+    balance: parseFloat(r.balance),
+    currency: r.currency,
+  }));
+}
+
 // Dashboard
 export async function getDashboard() {
   const allAccounts = await getAllAccounts();
@@ -134,7 +155,53 @@ export async function getDashboard() {
     balances.push({ account, entity, latestBalance: latest || null });
   }
 
-  const totalsByCurrency = {};
+  // Get upcoming maturities (deposits/bonds maturing in next 90 days)
+  const now = new Date();
+  const in90 = new Date();
+  in90.setDate(in90.getDate() + 90);
+
+  const upcomingInstruments = await db.select({
+    account: accounts,
+    entity: entities,
+  })
+    .from(accounts)
+    .innerJoin(entities, eq(accounts.entityId, entities.id))
+    .where(eq(accounts.type, 'deposit'));
+
+  const bondInstruments = await db.select({
+    account: accounts,
+    entity: entities,
+  })
+    .from(accounts)
+    .innerJoin(entities, eq(accounts.entityId, entities.id))
+    .where(eq(accounts.type, 'bond'));
+
+  const allInstruments = [...upcomingInstruments, ...bondInstruments];
+  const enrichedInstruments = [];
+  for (const item of allInstruments) {
+    if (!item.account.maturityDate) continue;
+    const maturity = new Date(item.account.maturityDate);
+    if (maturity < now || maturity > in90) continue;
+
+    const [latest] = await db.select().from(balanceEntries)
+      .where(eq(balanceEntries.accountId, item.account.id))
+      .orderBy(desc(balanceEntries.date))
+      .limit(1);
+
+    const daysToMaturity = Math.ceil((maturity.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+    enrichedInstruments.push({
+      account: item.account,
+      entity: item.entity,
+      latestBalance: latest,
+      daysToMaturity,
+      balance: latest ? parseFloat(latest.balance) : 0,
+    });
+  }
+
+  // Sort by nearest maturity first
+  enrichedInstruments.sort((a, b) => a.daysToMaturity - b.daysToMaturity);
+
+  const totalsByCurrency: Record<string, number> = {};
   for (const b of balances) {
     if (b.latestBalance) {
       const curr = b.latestBalance.currency;
@@ -142,5 +209,10 @@ export async function getDashboard() {
     }
   }
 
-  return { balances, anomalies: allAnomalies, totalsByCurrency };
+  return {
+    balances,
+    anomalies: allAnomalies,
+    totalsByCurrency,
+    upcomingMaturities: enrichedInstruments,
+  };
 }
