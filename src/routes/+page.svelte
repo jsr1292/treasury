@@ -64,6 +64,97 @@
     </div>
   {/if}
 
+  <!-- ── Investments summary ── -->
+  {#if data.investments && data.investments.count > 0}
+    <div class="grid gap-3 mb-5" style="grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));">
+      <!-- Total invested -->
+      <div class="stat-card">
+        <div class="flex items-center justify-between mb-2">
+          <span class="text-[10px] font-medium uppercase tracking-[0.08em]" style="color: var(--text3);">Total Invested</span>
+          <span class="badge" style="background: rgba(0,229,160,0.1); color: var(--green); border: 1px solid rgba(0,229,160,0.2);">💰</span>
+        </div>
+        <div class="text-2xl font-bold mono" style="color: var(--green);">
+          {formatCurrency(data.investments.total, 'USD')}
+        </div>
+        <div class="text-[10px] mt-1" style="color: var(--text3);">
+          {data.investments.count} placement{data.investments.count !== 1 ? 's' : ''}
+        </div>
+      </div>
+
+      <!-- Average rate -->
+      <div class="stat-card">
+        <div class="flex items-center justify-between mb-2">
+          <span class="text-[10px] font-medium uppercase tracking-[0.08em]" style="color: var(--text3);">Avg. Rate</span>
+          <span class="badge badge-gold">APR</span>
+        </div>
+        <div class="text-2xl font-bold mono" style="color: var(--gold);">
+          {data.investments.avgRate.toFixed(3)}%
+        </div>
+        <div class="text-[10px] mt-1" style="color: var(--text3);">
+          weighted average
+        </div>
+      </div>
+
+      <!-- Expected annual interest -->
+      <div class="stat-card">
+        <div class="flex items-center justify-between mb-2">
+          <span class="text-[10px] font-medium uppercase tracking-[0.08em]" style="color: var(--text3);">Est. Annual Interest</span>
+        </div>
+        <div class="text-2xl font-bold mono" style="color: var(--green);">
+          {formatCurrency(data.investments.total * data.investments.avgRate / 100, 'USD')}
+        </div>
+        <div class="text-[10px] mt-1" style="color: var(--text3);">
+          at current rates
+        </div>
+      </div>
+
+      <!-- Next maturity -->
+      {#if data.investments.accounts[0]}
+        {@const next = data.investments.accounts[0]}
+        <div class="stat-card">
+          <div class="flex items-center justify-between mb-2">
+            <span class="text-[10px] font-medium uppercase tracking-[0.08em]" style="color: var(--text3);">
+              {next.daysToMaturity !== null && next.daysToMaturity <= 30 ? '⏰ Next Maturity' : 'Furthest Maturity'}
+            </span>
+          </div>
+          <div class="text-2xl font-bold mono" style="color: {next.daysToMaturity !== null && next.daysToMaturity <= 30 ? '#ffd70a' : 'var(--text)'};">
+            {next.daysToMaturity !== null ? next.daysToMaturity + 'd' : '—'}
+          </div>
+          <div class="text-[10px] mt-1 truncate" style="color: var(--text3);">
+            {next.account.name} · {formatCurrency(next.balance, next.account.currency)}
+          </div>
+        </div>
+      {/if}
+    </div>
+
+    <!-- Investment detail list -->
+    <div class="mb-5">
+      <div class="text-[10px] font-semibold uppercase tracking-[0.1em] mb-2" style="color: var(--text3);">Placements</div>
+      <div class="grid gap-2" style="grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));">
+        {#each data.investments.accounts as inv}
+          {@const urgency = inv.daysToMaturity !== null && inv.daysToMaturity <= 30 ? 'warning' : inv.daysToMaturity !== null && inv.daysToMaturity <= 14 ? 'critical' : 'ok'}
+          <div class="stat-card py-3" style="border-left: 3px solid {urgency === 'critical' ? 'var(--red)' : urgency === 'warning' ? '#ffd70a' : 'var(--green)'};">
+            <div class="flex items-start justify-between gap-2 mb-1">
+              <div class="text-sm font-semibold truncate" style="color: var(--text);">{inv.account.name}</div>
+              {#if inv.account.interestRate}
+                <div class="text-sm font-bold mono flex-shrink-0" style="color: var(--gold);">{parseFloat(inv.account.interestRate).toFixed(2)}%</div>
+              {/if}
+            </div>
+            <div class="text-lg font-bold mono" style="color: var(--green);">{formatCurrency(inv.balance, inv.account.currency)}</div>
+            <div class="flex items-center justify-between mt-1">
+              <div class="text-[10px]" style="color: var(--text3);">{inv.entity.name}</div>
+              {#if inv.daysToMaturity !== null}
+                <div class="text-[10px] mono" style="color: {urgency === 'critical' ? 'var(--red)' : urgency === 'warning' ? '#ffd70a' : 'var(--text3)'};">
+                  {new Date(inv.account.maturityDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                </div>
+              {/if}
+            </div>
+          </div>
+        {/each}
+      </div>
+    </div>
+  {/if}
+
   <!-- ── Currency breakdown ── -->
   {#if Object.keys(data.totalsByCurrency).length > 1}
     <div class="stat-card mb-6">
@@ -71,9 +162,6 @@
       <CurrencyBreakdown totalsByCurrency={data.totalsByCurrency} />
     </div>
   {/if}
-
-  <!-- ── Anomaly alerts ── -->
-
 
   <!-- ── Maturity calendar ── -->
   {#if data.upcomingMaturities && data.upcomingMaturities.length > 0}
