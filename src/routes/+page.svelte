@@ -22,11 +22,11 @@
   <title>Treasury — Dashboard</title>
 </svelte:head>
 
-<div class="max-w-5xl mx-auto page-desktop">
+<div class="max-w-7xl mx-auto page-desktop">
 
   <!-- ── Summary cards ── -->
   {#if Object.keys(data.totalsByCurrency).length > 0}
-    <div class="grid gap-4 mb-6" style="grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));">
+    <div class="grid gap-3 mb-5" style="grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));">
       {#each Object.entries(data.totalsByCurrency) as [currency, total]}
         <div class="stat-card">
           <div class="flex items-center justify-between mb-2">
@@ -49,12 +49,6 @@
           <div>
             <div class="text-lg font-bold mono" style="color: var(--green);">{data.balances.filter(b => b.latestBalance).length}</div>
             <div class="text-[10px]" style="color: var(--text3);">Active</div>
-          </div>
-          <div>
-            <div class="text-lg font-bold mono" style="color: {data.anomalies.length > 0 ? 'var(--red)' : 'var(--text3)'};">
-              {data.anomalies.length}
-            </div>
-            <div class="text-[10px]" style="color: var(--text3);">Alerts</div>
           </div>
         </div>
       </div>
@@ -79,25 +73,7 @@
   {/if}
 
   <!-- ── Anomaly alerts ── -->
-  {#if data.anomalies.length > 0}
-    <div class="mb-6">
-      <div class="text-[10px] font-semibold uppercase tracking-[0.1em] mb-3" style="color: var(--red);">⚠ Balance Alerts — {data.anomalies.length}</div>
-      <div class="space-y-2">
-        {#each data.anomalies as anomaly}
-          <div class="stat-card flex items-center gap-3" style="border-left: 3px solid {anomaly.severity === 'critical' ? 'var(--red)' : '#ffd70a'};">
-            <span class="text-base">{anomaly.severity === 'critical' ? '🔴' : '🟡'}</span>
-            <div class="flex-1 min-w-0">
-              <div class="text-sm truncate" style="color: var(--text);">{anomaly.message}</div>
-              <div class="text-[10px]" style="color: var(--text3);">{anomaly.type} · {anomaly.severity}</div>
-            </div>
-            <span class="text-[10px] mono" style="color: var(--text3); flex-shrink: 0;">
-              {new Date(anomaly.createdAt).toLocaleDateString()}
-            </span>
-          </div>
-        {/each}
-      </div>
-    </div>
-  {/if}
+
 
   <!-- ── Maturity calendar ── -->
   {#if data.upcomingMaturities && data.upcomingMaturities.length > 0}
@@ -176,12 +152,11 @@
         <table class="data-table">
           <thead>
             <tr>
-              <th>Account</th>
-              <th>Entity</th>
-              <th>Type</th>
-              <th style="text-align: right;">Balance</th>
-              <th style="text-align: right;">Currency</th>
-              <th style="text-align: right;">Updated</th>
+              <th class="th-account">Account</th>
+              <th class="th-entity">Entity</th>
+              <th class="th-type">Type</th>
+              <th class="th-balance">Balance</th>
+              <th class="th-updated">Updated</th>
             </tr>
           </thead>
           <tbody>
@@ -194,9 +169,9 @@
                     {account.name}
                   </a>
                 </td>
-                <td style="color: var(--text3);">{entity.name}</td>
-                <td><span class="badge {cfg.badge}">{cfg.icon} {cfg.label}</span></td>
-                <td style="text-align: right;" class="mono font-semibold">
+                <td class="td-entity">{entity.name}</td>
+                <td class="td-type"><span class="badge {cfg.badge}">{cfg.icon}</span></td>
+                <td style="text-align: right;" class="mono font-semibold td-balance">
                   {#if latestBalance}
                     <span style="color: {isNegative ? 'var(--red)' : 'var(--gold)'};">
                       {formatNumber(latestBalance.balance)}
@@ -205,8 +180,7 @@
                     <span style="color: var(--text3);">—</span>
                   {/if}
                 </td>
-                <td style="text-align: right; color: var(--text3);">{account.currency}</td>
-                <td style="text-align: right; color: var(--text3);">{latestBalance ? formatDateShort(latestBalance.date) : '—'}</td>
+                <td style="text-align: right; color: var(--text3);" class="td-updated">{latestBalance ? formatDateShort(latestBalance.date) : '—'}</td>
               </tr>
             {/each}
           </tbody>
@@ -254,5 +228,22 @@
     font-size: 12px;
     color: var(--text3);
     font-family: monospace;
+  }
+
+  /* Mobile table: compact columns */
+  .th-account { width: 30%; }
+  .th-entity  { width: 20%; }
+  .th-type    { width: 15%; }
+  .th-balance { width: 25%; text-align: right !important; }
+  .th-updated { width: 10%; text-align: right !important; }
+  .td-entity  { color: var(--text3); font-size: 11px; }
+  .td-type    { }
+  .td-balance { font-size: 11px; }
+  .td-updated { font-size: 10px; }
+
+  @media (max-width: 767px) {
+    .data-table { table-layout: fixed; }
+    .th-entity  { display: none; }
+    .td-entity  { display: none; }
   }
 </style>

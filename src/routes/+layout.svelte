@@ -2,7 +2,7 @@
   import '../app.css';
   import { page } from '$app/stores';
   import Toast from '$lib/components/Toast.svelte';
-  let { children } = $props();
+  let { children, data } = $props();
   let currentPath = $derived($page.url.pathname);
 
   // Theme
@@ -91,6 +91,7 @@
     }
   });
   let mobileMoreOpen = $state(false);
+  let showAlertSheet = $state(false);
   const mobilePrimary = navFlat.slice(0, 4);
   const mobileSecondary = navFlat.slice(4);
 
@@ -124,40 +125,90 @@
       </div>
 
       <!-- Nav sections -->
-      <nav class="flex-1 py-4 px-3 overflow-auto">
-        {#each navSections as section}
-          {#if section.label}
-            <div class="text-[9px] font-semibold uppercase tracking-[0.14em] px-3 mt-5 mb-2" style="color: var(--text3);">{section.label}</div>
-          {/if}
-          {#each section.items as item}
-            {@const isActive = currentPath === item.href || (item.href !== '/' && currentPath.startsWith(item.href))}
-            <a href={item.href}
-              class="flex items-center gap-2.5 px-3 py-2 rounded-lg no-underline transition-all"
-              style="color: {isActive ? 'var(--gold)' : 'var(--text3)'}; background: {isActive ? 'rgba(201,168,76,0.08)' : 'transparent'}; font-weight: {isActive ? '500' : '400'};">
-              <div style="width: 18px; height: 18px; opacity: {isActive ? '1' : '0.6'};">{@html item.icon}</div>
-              <span style="font-size: 13px;">{item.label}</span>
-            </a>
+      <nav class="flex-1 py-4 px-3 overflow-auto flex flex-col justify-between">
+        <div>
+          {#each navSections as section}
+            {#if section.label}
+              <div class="text-[9px] font-semibold uppercase tracking-[0.14em] px-3 mt-5 mb-2" style="color: var(--text3);">{section.label}</div>
+            {/if}
+            {#each section.items as item}
+              {@const isActive = currentPath === item.href || (item.href !== '/' && currentPath.startsWith(item.href))}
+              <a href={item.href}
+                class="flex items-center gap-2.5 px-3 py-2 rounded-lg no-underline transition-all mb-0.5"
+                style="color: {isActive ? 'var(--gold)' : 'var(--text3)'}; background: {isActive ? 'rgba(201,168,76,0.08)' : 'transparent'}; font-weight: {isActive ? '500' : '400'};">
+                <div style="width: 18px; height: 18px; opacity: {isActive ? '1' : '0.6'}; flex-shrink: 0;">{@html item.icon}</div>
+                <span style="font-size: 13px;">{item.label}</span>
+              </a>
+            {/each}
           {/each}
-        {/each}
+        </div>
+        <div class="mt-4">
+          <button onclick={toggleTheme} class="flex items-center gap-2.5 w-full px-3 py-2 rounded-lg no-underline transition-colors" style="background: none; border: none; cursor: pointer; color: var(--text3);">
+            <span class="text-sm">{theme === 'dark' ? '🌙' : '☀️'}</span>
+            <span style="font-size: 12px;">{theme === 'dark' ? 'Dark' : 'Light'}</span>
+          </button>
+        </div>
       </nav>
-
-      <!-- Sidebar footer -->
-      <div class="px-4 py-3" style="border-top: 1px solid var(--glass-border);">
-        <button onclick={toggleTheme} class="flex items-center gap-2.5 w-full px-2 py-2 rounded-lg no-underline transition-colors" style="background: none; border: none; cursor: pointer; color: var(--text3);">
-          <span class="text-sm">{theme === 'dark' ? '🌙' : '☀️'}</span>
-          <span style="font-size: 12px;">{theme === 'dark' ? 'Dark' : 'Light'}</span>
-        </button>
-      </div>
     </aside>
 
     <!-- Main area -->
     <div class="flex-1 flex flex-col min-h-screen">
       <!-- Desktop top bar -->
-      <header class="hidden md:flex items-center justify-between px-8 py-3.5" style="border-bottom: 1px solid var(--glass-border); background: var(--bg-dark); position: sticky; top: 0; z-index: 30;">
-        <div class="flex items-center gap-3">
+      <header class="hidden md:flex items-center justify-between px-6 py-3.5 gap-6" style="border-bottom: 1px solid var(--glass-border); background: var(--bg-dark); position: sticky; top: 0; z-index: 30; min-height: 56px;">
+        <div class="flex items-center gap-3 flex-shrink-0">
           <h2 class="text-sm font-semibold" style="color: var(--text);">{pageTitle()}</h2>
         </div>
-        <div class="flex items-center gap-4">
+        <div class="flex items-center gap-4 flex-1 justify-end">
+          <div class="relative" style="width: 280px;">
+            <input
+              type="search"
+              placeholder="Search accounts, entities…"
+              class="w-full"
+              style="background: var(--input-bg); border: 1px solid var(--input-border); border-radius: 8px; padding: 6px 12px 6px 32px; font-size: 12px; color: var(--text); outline: none; transition: border-color 0.15s;"
+              onfocus={(e) => e.currentTarget.style.borderColor = 'var(--input-focus)'}
+              onblur={(e) => e.currentTarget.style.borderColor = 'var(--input-border)'}
+            />
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="position: absolute; left: 10px; top: 50%; transform: translateY(-50%); width: 13px; height: 13px; color: var(--text3); pointer-events: none;">
+              <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
+            </svg>
+          </div>
+          {#if data.fxRates?.length}
+            <div class="flex items-center gap-3" style="font-size: 11px;">
+              {#each data.fxRates.slice(0, 3) as rate}
+                <div class="flex items-center gap-1.5">
+                  <span style="color: var(--text3);">{rate.base}/{rate.quote}</span>
+                  <span class="mono font-medium" style="color: var(--text);">{Number(rate.rate).toFixed(4)}</span>
+                </div>
+              {/each}
+            </div>
+          {:else}
+            <div class="flex items-center gap-3" style="font-size: 11px;">
+              <div class="flex items-center gap-1.5">
+                <span style="color: var(--text3);">EUR/USD</span>
+                <span class="mono" style="color: var(--text3);">—</span>
+              </div>
+              <div class="flex items-center gap-1.5">
+                <span style="color: var(--text3);">EUR/GBP</span>
+                <span class="mono" style="color: var(--text3);">—</span>
+              </div>
+              <div class="flex items-center gap-1.5">
+                <span style="color: var(--text3);">EUR/CHF</span>
+                <span class="mono" style="color: var(--text3);">—</span>
+              </div>
+            </div>
+          {/if}
+          {#if data.anomalies?.length > 0}
+            <button
+              onclick={() => showAlertSheet = true}
+              class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg cursor-pointer"
+              style="background: rgba(255,77,106,0.1); border: 1px solid rgba(255,77,106,0.2); transition: background 0.15s;"
+              onmouseenter={(e) => e.currentTarget.style.background = 'rgba(255,77,106,0.18)'}
+              onmouseleave={(e) => e.currentTarget.style.background = 'rgba(255,77,106,0.10)'}
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="var(--red)" stroke-width="2" style="width:13px;height:13px;"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+              <span style="color: var(--red); font-size: 11px; font-weight: 600;">{data.anomalies.length}</span>
+            </button>
+          {/if}
           <div class="text-[10px] mono" style="color: var(--text3);">
             {new Date().toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })}
           </div>
@@ -171,6 +222,58 @@
     </div>
   </div>
 
+  <!-- Alert Sheet -->
+  {#if showAlertSheet}
+    <!-- Backdrop -->
+    <div class="fixed inset-0" style="z-index: 99; background: rgba(0,0,0,0.5); backdrop-filter: blur(2px);" onclick={() => showAlertSheet = false}></div>
+    <!-- Sheet -->
+    <div class="fixed top-0 right-0 h-full flex flex-col" style="z-index: 100; width: min(420px, 100vw); background: var(--bg2); border-left: 1px solid var(--glass-border); animation: slideInRight 0.15s ease-out;">
+      <!-- Sheet header -->
+      <div class="flex items-center justify-between px-5 py-4" style="border-bottom: 1px solid var(--glass-border);">
+        <div class="flex items-center gap-2">
+          <span style="color: var(--red);">⚠️</span>
+          <span class="text-sm font-semibold" style="color: var(--text);">Balance Alerts</span>
+          <span class="text-[10px] px-2 py-0.5 rounded-full" style="background: rgba(255,77,106,0.12); color: var(--red);">{data.anomalies?.length ?? 0}</span>
+        </div>
+        <button onclick={() => showAlertSheet = false} class="flex items-center justify-center w-8 h-8 rounded-lg" style="color: var(--text3); transition: background 0.15s;" onmouseenter={(e) => e.currentTarget.style.background='var(--bg-card-hover)'} onmouseleave={(e) => e.currentTarget.style.background='transparent'}>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:16px;height:16px;"><path d="M18 6 6 18M6 6l12 12" stroke-linecap="round"/></svg>
+        </button>
+      </div>
+      <!-- Sheet content -->
+      <div class="flex-1 overflow-auto p-4 space-y-3">
+        {#if data.anomalies?.length === 0}
+          <div class="text-center py-12" style="color: var(--text3);">
+            <div class="text-3xl mb-3">✅</div>
+            <div class="text-sm">No alerts — everything looks good</div>
+          </div>
+        {:else}
+          {#each data.anomalies ?? [] as anomaly}
+            <div class="stat-card" style="border-left: 3px solid {anomaly.severity === 'critical' ? 'var(--red)' : '#ffd70a'};">
+              <div class="flex items-start justify-between gap-3 mb-1.5">
+                <div class="flex items-center gap-2">
+                  <span class="text-sm">{anomaly.severity === 'critical' ? '🔴' : '🟡'}</span>
+                  <span class="text-[10px] font-semibold uppercase tracking-[0.08em]" style="color: {anomaly.severity === 'critical' ? 'var(--red)' : '#ffd70a'};">{anomaly.type === 'spike' && anomaly.message?.includes('-') ? 'Drop' : anomaly.type}</span>
+                  {#if anomaly.accountName}
+                    <span class="text-[10px] px-2 py-0.5 rounded" style="background: var(--bg-card); color: var(--text3);">{anomaly.accountName}</span>
+                  {/if}
+                </div>
+                <span class="text-[9px] mono" style="color: var(--text3);">{anomaly.createdAt ? new Date(anomaly.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : ''}</span>
+              </div>
+              <div class="text-sm mb-3" style="color: var(--text);">{anomaly.message}</div>
+              <div class="flex items-center gap-2">
+                <button class="text-[10px] px-3 py-1.5 rounded-lg" style="background: rgba(201,168,76,0.1); color: var(--gold); border: 1px solid rgba(201,168,76,0.2); cursor: pointer;">
+                  Review →
+                </button>
+                <button class="text-[10px] px-3 py-1.5 rounded-lg" style="background: var(--input-bg); color: var(--text3); border: 1px solid var(--input-border); cursor: pointer;">
+                  Dismiss
+                </button>
+              </div>
+            </div>
+          {/each}
+        {/if}
+      </div>
+    </div>
+  {/if}
 
   <!-- Mobile theme toggle (bottom-right, above nav, z-index below More panel) -->
   <div class="md:hidden fixed bottom-[6.5rem] right-4" style="z-index: 45;">
@@ -234,5 +337,9 @@
   @keyframes slideUp {
     from { transform: translateY(8px); opacity: 0; }
     to { transform: translateY(0); opacity: 1; }
+  }
+  @keyframes slideInRight {
+    from { transform: translateX(100%); opacity: 0; }
+    to { transform: translateX(0); opacity: 1; }
   }
 </style>
