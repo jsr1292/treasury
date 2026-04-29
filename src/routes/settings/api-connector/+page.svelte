@@ -52,33 +52,30 @@
 
   // Internal field definitions per endpoint
   const entityInternalFields = [
-    { key: 'name', label: 'Name', required: true },
-    { key: 'type', label: 'Type' },
-    { key: 'currency', label: 'Currency' },
-    { key: 'country', label: 'Country' },
-    { key: 'parentId', label: 'Parent' },
-    { key: 'id', label: 'ID' },
-    { key: 'taxId', label: 'Tax ID' },
+    { key: 'name', label: 'Company name', icon: '🏢', hint: 'The full company name', required: true },
+    { key: 'type', label: 'Entity type', icon: '🏷️', hint: 'Headquarters, Branch, Subsidiary...' },
+    { key: 'currency', label: 'Currency', icon: '💱', hint: 'EUR, USD, PEN...' },
+    { key: 'country', label: 'Country', icon: '🌍', hint: 'Country name or code' },
+    { key: 'parentId', label: 'Parent company', icon: '🔗', hint: 'Links branch to HQ' },
+    { key: 'id', label: 'ID', icon: '🔑', hint: 'Unique identifier' },
   ];
 
   const accountInternalFields = [
-    { key: 'name', label: 'Account Name', required: true },
-    { key: 'entityName', label: 'Entity', required: true },
-    { key: 'type', label: 'Account Type' },
-    { key: 'bankName', label: 'Bank' },
-    { key: 'currency', label: 'Currency' },
-    { key: 'country', label: 'Country' },
-    { key: 'id', label: 'ID' },
+    { key: 'name', label: 'Account name', icon: '📝', hint: 'e.g. Sabadell Madrid', required: true },
+    { key: 'entityName', label: 'Company', icon: '🏢', hint: 'Which company owns this account', required: true },
+    { key: 'type', label: 'Account type', icon: '🏷️', hint: 'Checking, savings...' },
+    { key: 'bankName', label: 'Bank name', icon: '🏦', hint: 'e.g. Banco Sabadell' },
+    { key: 'currency', label: 'Currency', icon: '💱', hint: 'EUR, USD, PEN...' },
+    { key: 'country', label: 'Country', icon: '🌍', hint: 'Country of the account' },
   ];
 
   const balanceInternalFields = [
-    { key: 'accountId', label: 'Account', required: true },
-    { key: 'balance', label: 'Balance (EUR)', required: true },
-    { key: 'date', label: 'Date' },
-    { key: 'entityName', label: 'Entity' },
-    { key: 'bankName', label: 'Bank' },
-    { key: 'balanceLocal', label: 'Balance (local)' },
-    { key: 'currency', label: 'Currency' },
+    { key: 'accountId', label: 'Account', icon: '📝', hint: 'Which account this balance is for', required: true },
+    { key: 'balance', label: 'Amount (EUR)', icon: '💶', hint: 'Balance in euros', required: true },
+    { key: 'date', label: 'Date', icon: '📅', hint: 'When this balance was recorded' },
+    { key: 'entityName', label: 'Company', icon: '🏢', hint: 'Company name' },
+    { key: 'bankName', label: 'Bank', icon: '🏦', hint: 'Bank name' },
+    { key: 'balanceLocal', label: 'Amount (local)', icon: '💵', hint: 'Balance in original currency' },
   ];
 
   // Load existing config

@@ -1,14 +1,12 @@
 <script lang="ts">
   // apiFields: string[] — field names from the detected API response
-  // internalFields: { key: string, label: string, required?: boolean }[] — our internal fields
+  // internalFields: { key: string, label: string, icon?: string, hint?: string, required?: boolean }[]
   // connections: Record<string, string> — { apiField: internalKey } (bindable)
   // sampleValues?: Record<string, string> — sample data for preview
   let { apiFields = [], internalFields = [], connections = $bindable({}), sampleValues = {} } = $props();
 
   let selectedLeft = $state<string | null>(null);
-  let hoveredRight = $state<string | null>(null);
 
-  // Connection colors — each connection gets a unique color
   const COLORS = [
     '#c9a84c', '#3b82f6', '#00e5a0', '#ff4d6a', '#a78bfa',
     '#f59e0b', '#06b6d4', '#ec4899', '#84cc16', '#f97316',
@@ -25,7 +23,6 @@
     return map;
   });
 
-  // Reverse lookup
   let rightMap = $derived(() => {
     const m: Record<string, string> = {};
     for (const [l, r] of Object.entries(connections)) m[r] = l;
@@ -33,24 +30,28 @@
   });
 
   let connectedCount = $derived(() => Object.keys(connections).length);
-  let requiredCount = $derived(() => internalFields.filter(f => f.required).length);
-  let requiredMapped = $derived(() => internalFields.filter(f => f.required && rightMap()[f.key]).length);
+  let requiredFields = $derived(() => internalFields.filter(f => f.required));
+  let requiredMapped = $derived(() => requiredFields.filter(f => rightMap()[f.key]).length);
+  let allRequiredMapped = $derived(() => requiredMapped >= requiredFields.length);
+
+  // Track which required field we're prompting for
+  let nextRequired = $derived(() => {
+    return requiredFields.find(f => !rightMap()[f.key]);
+  });
 
   function handleLeftClick(field: string) {
+    if (connections[field]) {
+      // Already connected — disconnect
+      const next = { ...connections };
+      delete next[field];
+      connections = next;
+      return;
+    }
     selectedLeft = selectedLeft === field ? null : field;
   }
 
   function handleRightClick(internalKey: string) {
-    if (!selectedLeft) {
-      // Disconnect existing
-      const existing = rightMap()[internalKey];
-      if (existing) {
-        const next = { ...connections };
-        delete next[existing];
-        connections = next;
-      }
-      return;
-    }
+    if (!selectedLeft) return;
     const next = { ...connections };
     delete next[selectedLeft];
     for (const [l, r] of Object.entries(next)) {
@@ -65,120 +66,175 @@
     connections = {};
     selectedLeft = null;
   }
+
+  function autoConnect() {
+    // Smart auto-match by name similarity
+    const next: Record<string, string> = {};
+    const usedRight = new Set<string>();
+    const usedLeft = new Set<string>();
+
+    // First pass: exact matches (case-insensitive)
+    for (const apiField of apiFields) {
+      const apiLower = apiField.toLowerCase().replace(/[_\s-]/g, '');
+      for (const intField of internalFields) {
+        if (usedRight.has(intField.key)) continue;
+        const intLower = intField.key.toLowerCase().replace(/[_\s-]/g, '');
+        if (apiLower === intLower || apiLower === intField.label?.toLowerCase().replace(/[_\s-]/g, '')) {
+          next[apiField] = intField.key;
+          usedRight.add(intField.key);
+          usedLeft.add(apiField);
+          break;
+        }
+      }
+    }
+
+    // Second pass: contains match
+    for (const apiField of apiFields) {
+      if (usedLeft.has(apiField)) continue;
+      const apiLower = apiField.toLowerCase();
+      for (const intField of internalFields) {
+        if (usedRight.has(intField.key)) continue;
+        const intLower = intField.key.toLowerCase();
+        const labelLower = (intField.label || '').toLowerCase();
+        if (apiLower.includes(intLower) || intLower.includes(apiLower) ||
+            apiLower.includes(labelLower) || labelLower.includes(apiLower)) {
+          next[apiField] = intField.key;
+          usedRight.add(intField.key);
+          usedLeft.add(apiField);
+          break;
+        }
+      }
+    }
+
+    connections = next;
+    selectedLeft = null;
+  }
 </script>
 
-<!-- Progress bar -->
-<div style="margin-bottom: 12px;">
-  <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
-    <div style="font-size: 9px; color: var(--text3);">
-      {#if selectedLeft}
-        <span style="display: inline-flex; align-items: center; gap: 4px;">
-          <span style="display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--gold); animation: pulse 1.5s infinite;"></span>
-          <span style="color: var(--gold); font-weight: 500;">{selectedLeft}</span> selected — click a field on the right →
+<!-- Header -->
+<div style="margin-bottom: 14px;">
+  <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+    <div style="display: flex; align-items: center; gap: 8px;">
+      {#if allRequiredMapped && connectedCount > 0}
+        <span style="font-size: 11px;">✅</span>
+        <span style="font-size: 10px; color: var(--green); font-weight: 500;">All set! {connectedCount} fields connected</span>
+      {:else if selectedLeft}
+        <span style="font-size: 11px;">👆</span>
+        <span style="font-size: 10px; color: var(--gold); font-weight: 500;">
+          Now click the matching field on the right →
+        </span>
+      {:else if nextRequired}
+        <span style="font-size: 11px;">🔗</span>
+        <span style="font-size: 10px; color: var(--text3);">
+          Click <strong>"{nextRequired.label}"</strong> on the left to connect it
         </span>
       {:else}
-        Click left field → click right field to connect
+        <span style="font-size: 10px; color: var(--text3);">
+          Click a field on the left, then click its match on the right
+        </span>
       {/if}
     </div>
-    <div style="display: flex; align-items: center; gap: 8px;">
-      <span style="font-size: 9px; color: {requiredMapped >= requiredCount ? 'var(--green)' : 'var(--text3)'};">
-        {requiredMapped}/{requiredCount} required
-      </span>
+    <div style="display: flex; gap: 8px; align-items: center;">
+      <button onclick={autoConnect} style="font-size: 8px; color: var(--blue); background: rgba(59,130,246,0.08); border: 1px solid rgba(59,130,246,0.2); border-radius: 4px; padding: 2px 8px; cursor: pointer;">✨ Auto-match</button>
       {#if connectedCount > 0}
-        <button onclick={clearAll} style="font-size: 8px; color: var(--red); background: none; border: none; cursor: pointer; text-decoration: underline; opacity: 0.7;">Reset</button>
+        <button onclick={clearAll} style="font-size: 8px; color: var(--red); background: none; border: none; cursor: pointer; opacity: 0.6;">Reset</button>
       {/if}
     </div>
   </div>
-  <div style="height: 3px; background: var(--border); border-radius: 2px; overflow: hidden;">
-    <div style="height: 100%; width: {requiredCount > 0 ? (requiredMapped / requiredCount * 100) : 0}%; background: {requiredMapped >= requiredCount ? 'var(--green)' : 'var(--gold)'}; border-radius: 2px; transition: width 0.3s;"></div>
+
+  <!-- Progress -->
+  <div style="display: flex; align-items: center; gap: 8px;">
+    <div style="flex: 1; height: 4px; background: var(--border); border-radius: 3px; overflow: hidden;">
+      <div style="height: 100%; width: {allRequiredMapped ? 100 : (requiredFields.length > 0 ? requiredMapped / requiredFields.length * 100 : 0)}%; background: {allRequiredMapped ? 'var(--green)' : 'var(--gold)'}; border-radius: 3px; transition: width 0.4s ease, background 0.4s;"></div>
+    </div>
+    <span style="font-size: 9px; color: {allRequiredMapped ? 'var(--green)' : 'var(--text3)'}; white-space: nowrap;">
+      {requiredMapped}/{requiredFields.length}
+    </span>
   </div>
 </div>
 
-<!-- Mapper grid -->
-<div style="display: grid; grid-template-columns: 1fr 40px 1fr; gap: 0; align-items: start;">
-  <!-- Left: API Fields -->
+<!-- Two columns -->
+<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+  <!-- Left: Your API -->
   <div>
-    <div style="font-size: 8px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.14em; color: var(--text3); margin-bottom: 6px; padding: 0 8px;">
-      Your API
+    <div style="font-size: 8px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.14em; color: var(--text3); margin-bottom: 8px; padding: 0 4px;">
+      ← From your API
     </div>
-    <div style="display: flex; flex-direction: column; gap: 2px;">
-      {#each apiFields as field, i}
+    <div style="display: flex; flex-direction: column; gap: 3px;">
+      {#each apiFields as field}
         {@const conn = connections[field]}
         {@const color = connectionColors()[field]}
         {@const sample = sampleValues[field]}
         <button
           onclick={() => handleLeftClick(field)}
-          style="display: flex; align-items: center; gap: 0; width: 100%; padding: 0; border-radius: 6px; border: none; background: transparent; cursor: pointer; text-align: left;"
+          style="position: relative; display: flex; flex-direction: column; width: 100%; padding: 7px 10px 7px 14px; border-radius: 8px; border: 1.5px solid {selectedLeft === field ? 'var(--gold)' : conn ? color + '50' : 'var(--border)'}; background: {selectedLeft === field ? 'rgba(201,168,76,0.08)' : conn ? color + '0d' : 'var(--bg-surface)'}; cursor: pointer; text-align: left; transition: all 0.2s;"
         >
-          <!-- Color indicator bar -->
-          <div style="width: 3px; height: 32px; border-radius: 2px; background: {conn ? color : selectedLeft === field ? 'var(--gold)' : 'transparent'}; margin-right: 6px; transition: background 0.2s; flex-shrink: 0;"></div>
-          <div style="flex: 1; padding: 5px 8px; border-radius: 5px; border: 1px solid {selectedLeft === field ? 'var(--gold)' : conn ? color + '40' : 'var(--border)'}; background: {selectedLeft === field ? 'rgba(201,168,76,0.08)' : conn ? color + '0a' : 'var(--bg-surface)'}; transition: all 0.15s; min-height: 32px; display: flex; flex-direction: column; justify-content: center;">
-            <span style="font-size: 10px; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{field}</span>
-            {#if sample}
-              <span style="font-size: 8px; color: var(--text3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin-top: 1px;">{sample}</span>
-            {/if}
-          </div>
+          <!-- Left color dot -->
+          <div style="position: absolute; left: 4px; top: 50%; transform: translateY(-50%); width: 5px; height: 5px; border-radius: 50%; background: {conn ? color : selectedLeft === field ? 'var(--gold)' : 'var(--text3)'}; opacity: {conn || selectedLeft === field ? '1' : '0.2'}; {selectedLeft === field ? 'animation: pulse 1.2s infinite;' : ''}"></div>
+          <span style="font-size: 10px; color: var(--text); font-weight: {conn ? '500' : '400'};">{field}</span>
+          {#if sample}
+            <span style="font-size: 8px; color: var(--text3); margin-top: 2px; font-style: italic; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{sample}</span>
+          {/if}
+          {#if conn}
+            <span style="font-size: 7px; color: {color}; margin-top: 2px; font-weight: 500;">→ {internalFields.find(f => f.key === conn)?.label || conn} ✕</span>
+          {/if}
         </button>
       {/each}
     </div>
   </div>
 
-  <!-- Middle: Connection arrows -->
-  <div style="display: flex; flex-direction: column; align-items: center; padding-top: 22px; gap: 2px;">
-    {#each apiFields as field}
-      {@const conn = connections[field]}
-      {@const color = connectionColors()[field]}
-      <div style="height: 32px; display: flex; align-items: center; justify-content: center;">
-        {#if conn}
-          <div style="width: 20px; height: 2px; background: {color}; border-radius: 1px;"></div>
-        {:else if selectedLeft === field}
-          <div style="width: 20px; height: 2px; background: var(--gold); border-radius: 1px; opacity: 0.5; animation: pulse 1.5s infinite;"></div>
-        {:else}
-          <div style="width: 20px; height: 2px; background: var(--border); border-radius: 1px; opacity: 0.3;"></div>
-        {/if}
-      </div>
-    {/each}
-  </div>
-
-  <!-- Right: Internal Fields -->
+  <!-- Right: Treasury -->
   <div>
-    <div style="font-size: 8px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.14em; color: var(--text3); margin-bottom: 6px; padding: 0 8px;">
-      Treasury App
+    <div style="font-size: 8px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.14em; color: var(--text3); margin-bottom: 8px; padding: 0 4px;">
+      To Treasury App →
     </div>
-    <div style="display: flex; flex-direction: column; gap: 2px;">
+    <div style="display: flex; flex-direction: column; gap: 3px;">
       {#each internalFields as intField}
         {@const owner = rightMap()[intField.key]}
         {@const color = connectionColors()[intField.key]}
         {@const canClick = selectedLeft || owner}
+        {@const isNext = nextRequired?.key === intField.key && !owner}
         <button
           onclick={() => handleRightClick(intField.key)}
-          onmouseenter={() => hoveredRight = intField.key}
-          onmouseleave={() => hoveredRight = null}
-          style="display: flex; align-items: center; gap: 0; width: 100%; padding: 0; border-radius: 6px; border: none; background: transparent; cursor: {canClick ? 'pointer' : 'default'}; text-align: left;"
+          disabled={!canClick}
+          style="position: relative; display: flex; align-items: center; width: 100%; padding: 7px 10px 7px 14px; border-radius: 8px; border: 1.5px solid {owner ? color + '50' : isNext ? 'var(--gold)' : intField.required && !owner ? 'rgba(255,77,106,0.1)' : 'var(--border)'}; background: {owner ? color + '0d' : isNext && selectedLeft ? 'rgba(201,168,76,0.06)' : 'var(--bg-surface)'}; cursor: {canClick ? 'pointer' : 'default'}; text-align: left; transition: all 0.2s; opacity: {canClick ? '1' : '0.4'};"
         >
-          <div style="flex: 1; padding: 5px 8px; border-radius: 5px; border: 1px solid {owner ? color + '40' : intField.required && !owner ? 'rgba(255,77,106,0.12)' : 'var(--border)'}; background: {owner ? color + '0a' : selectedLeft ? 'rgba(201,168,76,0.03)' : 'transparent'}; transition: all 0.15s; min-height: 32px; display: flex; align-items: center; justify-content: space-between;">
-            <span style="font-size: 10px; color: {owner ? 'var(--text)' : canClick ? 'var(--text)' : 'var(--text3)'}; font-weight: {owner ? '500' : '400'};">{intField.label || intField.key}</span>
-            {#if intField.required && !owner}
-              <span style="font-size: 7px; color: var(--red); opacity: 0.5; margin-left: 4px;">●</span>
+          <!-- Right color dot -->
+          <div style="position: absolute; right: 4px; top: 50%; transform: translateY(-50%); width: 5px; height: 5px; border-radius: 50%; background: {owner ? color : isNext ? 'var(--gold)' : 'transparent'};"></div>
+          <div style="display: flex; align-items: center; gap: 5px; flex: 1;">
+            {#if intField.icon}
+              <span style="font-size: 12px;">{intField.icon}</span>
             {/if}
+            <div>
+              <span style="font-size: 10px; color: var(--text); font-weight: {owner ? '600' : '400'};">{intField.label || intField.key}</span>
+              {#if intField.hint && !owner}
+                <div style="font-size: 7px; color: var(--text3); margin-top: 1px;">{intField.hint}</div>
+              {/if}
+              {#if owner}
+                <div style="font-size: 7px; color: {color}; margin-top: 1px;">← {owner}</div>
+              {/if}
+            </div>
           </div>
-          <!-- Color indicator bar -->
-          <div style="width: 3px; height: 32px; border-radius: 2px; background: {owner ? color : 'transparent'}; margin-left: 6px; transition: background 0.2s; flex-shrink: 0;"></div>
+          {#if intField.required && !owner}
+            <span style="font-size: 8px; color: var(--red); opacity: 0.6; font-weight: 500;">*</span>
+          {:else if owner}
+            <span style="font-size: 10px; color: {color};">✓</span>
+          {/if}
         </button>
       {/each}
     </div>
   </div>
 </div>
 
-<!-- Connected summary pills -->
+<!-- Summary pills -->
 {#if connectedCount > 0}
-  <div style="margin-top: 12px; display: flex; flex-wrap: wrap; gap: 4px;">
+  <div style="margin-top: 14px; display: flex; flex-wrap: wrap; gap: 4px;">
     {#each Object.entries(connections) as [left, right], i}
       {@const color = COLORS[i % COLORS.length]}
-      <div style="display: inline-flex; align-items: center; gap: 4px; font-size: 9px; padding: 3px 8px; border-radius: 10px; background: {color}15; border: 1px solid {color}30;">
-        <span style="color: {color}; font-weight: 500; max-width: 120px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{left}</span>
+      <div style="display: inline-flex; align-items: center; gap: 4px; font-size: 9px; padding: 3px 8px 3px 10px; border-radius: 12px; background: {color}12; border: 1px solid {color}30;">
+        <span style="color: {color}; font-weight: 500; max-width: 100px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{left}</span>
         <span style="color: {color};">→</span>
-        <span style="color: var(--text); font-weight: 500;">{internalFields.find(f => f.key === right)?.label || right}</span>
+        <span style="color: var(--text);">{internalFields.find(f => f.key === right)?.label || right}</span>
       </div>
     {/each}
   </div>
@@ -187,6 +243,6 @@
 <style>
   @keyframes pulse {
     0%, 100% { opacity: 1; }
-    50% { opacity: 0.4; }
+    50% { opacity: 0.3; }
   }
 </style>
