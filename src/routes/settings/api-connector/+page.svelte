@@ -258,8 +258,12 @@
         </button>
       </div>
       <input bind:value={entitiesUrl} placeholder="https://api.company.com/entities" style={inputStyle} />
-      {#if detectResults.entities?.itemCount}
-        <div style="font-size: 9px; color: var(--green); margin-top: 4px;">✓ Found {detectResults.entities.itemCount} entities — {detectResults.entities.keys?.length} fields detected</div>
+      {#if detectResults.entities?.keys}
+        <div style="font-size: 9px; color: var(--green); margin-top: 4px;">✓ {detectResults.entities.itemCount} records, {detectResults.entities.keys.length} fields detected</div>
+        <details style="margin-top: 4px;">
+          <summary style="font-size: 9px; color: var(--text-dim); cursor: pointer;">Preview first record</summary>
+          <pre style="font-size: 9px; color: var(--text-muted); background: var(--bg-surface); padding: 8px; border-radius: 4px; overflow-x: auto; margin-top: 4px; white-space: pre-wrap;">{JSON.stringify(detectResults.entities.sample, null, 2)}</pre>
+        </details>
       {/if}
       <details style="margin-top: 6px;">
         <summary style="font-size: 9px; color: var(--text-dim); cursor: pointer;">Field mapping (auto-detected — edit if needed)</summary>
@@ -278,8 +282,12 @@
         </button>
       </div>
       <input bind:value={accountsUrl} placeholder="https://api.company.com/accounts" style={inputStyle} />
-      {#if detectResults.accounts?.itemCount}
-        <div style="font-size: 9px; color: var(--green); margin-top: 4px;">✓ Found {detectResults.accounts.itemCount} accounts — {detectResults.accounts.keys?.length} fields detected</div>
+      {#if detectResults.accounts?.keys}
+        <div style="font-size: 9px; color: var(--green); margin-top: 4px;">✓ {detectResults.accounts.itemCount} records, {detectResults.accounts.keys.length} fields detected</div>
+        <details style="margin-top: 4px;">
+          <summary style="font-size: 9px; color: var(--text-dim); cursor: pointer;">Preview first record</summary>
+          <pre style="font-size: 9px; color: var(--text-muted); background: var(--bg-surface); padding: 8px; border-radius: 4px; overflow-x: auto; margin-top: 4px; white-space: pre-wrap;">{JSON.stringify(detectResults.accounts.sample, null, 2)}</pre>
+        </details>
       {/if}
       <details style="margin-top: 6px;">
         <summary style="font-size: 9px; color: var(--text-dim); cursor: pointer;">Field mapping</summary>
@@ -298,8 +306,12 @@
         </button>
       </div>
       <input bind:value={balancesUrl} placeholder="https://api.company.com/balances" style={inputStyle} />
-      {#if detectResults.balances?.itemCount}
-        <div style="font-size: 9px; color: var(--green); margin-top: 4px;">✓ Found {detectResults.balances.itemCount} records — {detectResults.balances.keys?.length} fields detected</div>
+      {#if detectResults.balances?.keys}
+        <div style="font-size: 9px; color: var(--green); margin-top: 4px;">✓ {detectResults.balances.itemCount} records, {detectResults.balances.keys.length} fields detected</div>
+        <details style="margin-top: 4px;">
+          <summary style="font-size: 9px; color: var(--text-dim); cursor: pointer;">Preview first record</summary>
+          <pre style="font-size: 9px; color: var(--text-muted); background: var(--bg-surface); padding: 8px; border-radius: 4px; overflow-x: auto; margin-top: 4px; white-space: pre-wrap;">{JSON.stringify(detectResults.balances.sample, null, 2)}</pre>
+        </details>
       {/if}
       <details style="margin-top: 6px;">
         <summary style="font-size: 9px; color: var(--text-dim); cursor: pointer;">Field mapping</summary>
