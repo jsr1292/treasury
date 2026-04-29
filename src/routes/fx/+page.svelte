@@ -1,18 +1,20 @@
 <script>
   let { data } = $props();
   let rates = $derived(data.rates || []);
+  let connectorMode = $derived(data.connectorMode || 'database');
+  let isApiMode = $derived(connectorMode === 'api');
   let fetching = $state(false);
   let fetchResult = $state(null);
 
   async function fetchECB() {
+    if (isApiMode) return;
     fetching = true;
     fetchResult = null;
     try {
       const res = await fetch('/api/fx/fetch', { method: 'POST' });
-      const data = await res.json();
-      fetchResult = data;
-      if (data.ok) {
-        // Reload page to show new rates
+      const result = await res.json();
+      fetchResult = result;
+      if (result.ok) {
         setTimeout(() => window.location.reload(), 1000);
       }
     } catch {
@@ -22,7 +24,7 @@
   }
 
   import { formatNumber } from '$lib/format';
-  const fmt = (n) => formatNumber(n, undefined); // 2 decimals by default
+  const fmt = (n) => formatNumber(n, undefined);
   const fmt4 = (n) => new Intl.NumberFormat(navigator.language || 'es-ES', { minimumFractionDigits: 4, maximumFractionDigits: 4 }).format(parseFloat(n));
 </script>
 
@@ -36,10 +38,10 @@
       <div class="text-[10px] uppercase tracking-[0.12em] mb-1" style="color: var(--text3);">Currency exchange</div>
       <h1 class="text-2xl font-bold" style="color: var(--gold);">💱 FX Rates</h1>
     </div>
-    <button onclick={fetchECB} disabled={fetching}
+    <button onclick={fetchECB} disabled={fetching || isApiMode}
       class="px-4 py-2 rounded-lg text-xs font-bold disabled:opacity-40"
       style="background: linear-gradient(135deg, var(--gold), #b8943f); color: var(--bg-dark);">
-      {fetching ? 'Fetching...' : '↻ ECB Rates'}
+      {fetching ? 'Fetching...' : isApiMode ? 'FX via API' : '↻ ECB Rates'}
     </button>
   </div>
 

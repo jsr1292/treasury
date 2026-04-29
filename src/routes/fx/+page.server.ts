@@ -6,7 +6,7 @@ export const load: PageServerLoad = async () => {
   try {
     const rates = await getFxRates();
     const currencies = [...new Set(rates.map((r: any) => r.base || r.from || r.fromCurrency))];
-    return { rates, currencies, connectorMode: mode };
+    return { rates: rates || [], currencies: currencies || [], connectorMode: mode };
   } catch {
     return { rates: [], currencies: [], connectorMode: mode };
   }

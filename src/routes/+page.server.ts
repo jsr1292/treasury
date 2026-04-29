@@ -1,12 +1,67 @@
-import { getDashboard, getConnectorMode } from '$lib/server/data';
-import { isDatabaseAvailable } from '$lib/server/data';
+import { getConnectorMode, getEntities, getAccounts, getBalances } from '$lib/server/data';
 import type { PageServerLoad } from './$types.js';
 
 export const load: PageServerLoad = async () => {
   const mode = await getConnectorMode();
+
+  if (mode === 'api') {
+    // API mode: fetch entities, accounts, balances and compute totals
+    const [entities, accounts, balances] = await Promise.all([
+      getEntities(),
+      getAccounts(),
+      getBalances(),
+    ]);
+
+    // Build balance map keyed by account id
+    const balanceMap = new Map<string, any>();
+    for (const b of balances) {
+      const key = String(b.accountId || b.account_id || b.id || '');
+      if (key) balanceMap.set(key, b);
+    }
+
+    // Compute totals by currency
+    const totalsByCurrency: Record<string, number> = {};
+    const enrichedAccounts: any[] = [];
+
+    for (const acct of accounts) {
+      const acctKey = String(acct.id || acct.accountId || acct.name || '');
+      const bal = balanceMap.get(acctKey);
+      const balance = bal ? parseFloat(bal.balance || bal.balanceLocal || 0) : 0;
+      const currency = acct.currency || bal?.currency || 'EUR';
+
+      totalsByCurrency[currency] = (totalsByCurrency[currency] || 0) + balance;
+
+      // Find entity name
+      const entityName = acct.entityName || '—';
+      const matchedEntity = entities.find((e: any) =>
+        e.name === entityName || e.id === entityName ||
+        (e.name && entityName && (e.name.includes(entityName) || entityName.includes(e.name)))
+      );
+
+      enrichedAccounts.push({
+        account: { ...acct, currency },
+        entity: { name: matchedEntity?.name || entityName },
+        latestBalance: bal ? { balance, date: bal.date, currency } : null,
+      });
+    }
+
+    return {
+      balances: enrichedAccounts,
+      entities,
+      totalsByCurrency,
+      anomalies: [],
+      connectorMode: mode,
+      chartDays: 90,
+      historyMap: {},
+      investments: { accounts: [], total: 0, avgRate: 0, count: 0 },
+    };
+  }
+
+  // Database mode
+  const { getDashboard } = await import('$lib/server/data');
+  const { isDatabaseAvailable } = await import('$lib/server/data');
   const dash = await getDashboard();
 
-  // Investment summary — only available in database mode
   let investments = { accounts: [], total: 0, avgRate: 0, count: 0 };
 
   if (mode === 'database' && isDatabaseAvailable()) {
@@ -16,7 +71,6 @@ export const load: PageServerLoad = async () => {
       const { desc, eq } = await import('drizzle-orm');
       const { getBalanceHistory } = await import('$lib/server/db/queries');
 
-      // Balance history for charts
       const chartDays = parseInt(process.env.CHART_HISTORY_DAYS || '90');
       const historyMap: Record<string, { date: string; balance: number; currency: string }[]> = {};
       for (const b of (dash.balances || []).slice(0, 5)) {
@@ -24,7 +78,6 @@ export const load: PageServerLoad = async () => {
         if (acct?.id) historyMap[acct.id] = await getBalanceHistory(acct.id, chartDays);
       }
 
-      // Investment accounts
       const investRows = await db
         .select({ account: accounts, entity: entities })
         .from(accounts)

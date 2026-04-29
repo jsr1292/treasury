@@ -5,6 +5,8 @@
   let entity = $derived(data.entity);
   let children = $derived(data.children || []);
   let accounts = $derived(data.accounts || []);
+  let connectorMode = $derived(data.connectorMode || 'database');
+  let isApiMode = $derived(connectorMode === 'api');
 
   let showAddAccount = $state(false);
   let acctName = $state('');
@@ -63,13 +65,11 @@
       const result = await res.json();
       balanceAmount = ''; balanceNotes = '';
       showBalanceForm = false;
-      // Check if anomaly was triggered
       if (result.anomaly) {
         window.__toast?.('Balance saved — anomaly flagged ⚠️', 'warning');
       } else {
         window.__toast?.('Balance entry saved');
       }
-      // Reload to show updated data
       setTimeout(() => window.location.reload(), 800);
     } else {
       window.__toast?.('Failed to save balance', 'error');
@@ -80,6 +80,14 @@
   function startBalance(accountId) {
     balanceAccountId = accountId;
     showBalanceForm = true;
+  }
+
+  function getAccountHref(account) {
+    return '/accounts/' + (account.id || account.name || '');
+  }
+
+  function getEntityHref(entity) {
+    return '/entities/' + (entity.id || entity.name || '');
   }
 </script>
 
@@ -94,11 +102,11 @@
     <div class="mt-3 mb-6">
       <div class="flex items-center gap-2 mb-1">
         <span class="text-sm">{entity.type === 'headquarters' ? '🏢' : entity.type === 'branch' ? '📍' : '🏗️'}</span>
-        <span class="badge {entity.type === 'headquarters' ? 'badge-gold' : entity.type === 'branch' ? 'badge-blue' : 'badge-green'}">{entity.type === 'headquarters' ? 'Headquarters' : entity.type === 'branch' ? 'Branch' : 'Subsidiary'}</span>
+        <span class="badge {entity.type === 'headquarters' ? 'badge-gold' : entity.type === 'branch' ? 'badge-blue' : 'badge-green'}">{entity.type === 'headquarters' ? 'Headquarters' : entity.type === 'branch' ? 'Branch' : entity.type === 'subsidiary' ? 'Subsidiary' : (entity.type || 'Entity')}</span>
       </div>
-      <h1 class="text-xl font-bold" style="color: var(--text);">{entity.name}</h1>
+      <h1 class="text-xl font-bold" style="color: var(--text);">{entity.name || '—'}</h1>
       <div class="text-xs mt-1" style="color: var(--text3);">
-        {entity.currency}{#if entity.country} · {entity.country}{/if}{#if entity.taxId} · {entity.taxId}{/if}
+        {entity.currency || '—'}{#if entity.country} · {entity.country}{/if}{#if entity.taxId} · {entity.taxId}{/if}
       </div>
     </div>
 
@@ -107,11 +115,11 @@
         <div class="text-[10px] font-semibold uppercase tracking-[0.1em] mb-3" style="color: var(--text3);">Structure ({children.length})</div>
         <div class="space-y-2">
           {#each children as child}
-            <a href="/entities/{child.id}" class="account-row block no-underline">
-              <span>{child.type === 'branch' ? '📍' : '🏗️'}</span>
+            <a href={getEntityHref(child)} class="account-row block no-underline">
+              <span>{child.type === 'branch' ? '📍' : child.type === 'subsidiary' ? '🏗️' : '🏢'}</span>
               <div class="flex-1">
-                <div class="text-sm font-semibold" style="color: var(--text);">{child.name}</div>
-                <div class="text-[10px]" style="color: var(--text3);">{child.type.toUpperCase()} · {child.currency}</div>
+                <div class="text-sm font-semibold" style="color: var(--text);">{child.name || '—'}</div>
+                <div class="text-[10px]" style="color: var(--text3);">{(child.type || 'entity').toUpperCase()} · {child.currency || '—'}</div>
               </div>
               <span class="text-xs" style="color: var(--gold);">→</span>
             </a>
@@ -123,14 +131,16 @@
     <div class="mb-6">
       <div class="flex items-center justify-between mb-3">
         <div class="text-[10px] font-semibold uppercase tracking-[0.1em]" style="color: var(--text3);">Accounts ({accounts.length})</div>
-        <button onclick={() => showAddAccount = !showAddAccount}
-          class="text-[10px] font-bold tracking-[0.1em] px-3 py-1.5 rounded-lg"
-          style="color: var(--gold); background: rgba(201,168,76,0.1); border: 1px solid rgba(201,168,76,0.2);">
-          {showAddAccount ? 'CANCEL' : '+ ADD'}
-        </button>
+        {#if !isApiMode}
+          <button onclick={() => showAddAccount = !showAddAccount}
+            class="text-[10px] font-bold tracking-[0.1em] px-3 py-1.5 rounded-lg"
+            style="color: var(--gold); background: rgba(201,168,76,0.1); border: 1px solid rgba(201,168,76,0.2);">
+            {showAddAccount ? 'CANCEL' : '+ ADD'}
+          </button>
+        {/if}
       </div>
 
-      {#if showAddAccount}
+      {#if showAddAccount && !isApiMode}
         <div class="stat-card mb-4" style="border: 1px solid rgba(201,168,76,0.2);">
           <div class="text-xs font-semibold mb-4" style="color: var(--gold); letter-spacing: 0.1em;">NEW ACCOUNT</div>
           <form onsubmit={handleAddAccount} class="space-y-3">
@@ -235,16 +245,24 @@
               {#each accounts as account}
                 {@const cfg = ACCOUNT_TYPES[account.type] || ACCOUNT_TYPES.other}
                 <tr>
-                  <td><a href="/accounts/{account.id}" class="no-underline" style="color: var(--text); font-weight: 500;">{account.name}</a></td>
+                  <td><a href={getAccountHref(account)} class="no-underline" style="color: var(--text); font-weight: 500;">{account.name || '—'}</a></td>
                   <td><span class="badge {cfg.badge}">{cfg.icon} {cfg.label}</span></td>
                   <td style="color: var(--text3);">{account.bankName || '—'}</td>
-                  <td class="mono" style="color: var(--text3);">{account.currency}</td>
+                  <td class="mono" style="color: var(--text3);">{account.currency || '—'}</td>
                   <td style="text-align: right;">
-                    <button onclick={() => startBalance(account.id)}
-                      class="text-[10px] font-bold px-3 py-1.5 rounded"
-                      style="color: var(--gold); background: rgba(201,168,76,0.08); border: 1px solid rgba(201,168,76,0.15); cursor: pointer;">
-                      + Balance
-                    </button>
+                    {#if !isApiMode}
+                      <button onclick={() => startBalance(account.id || account.name)}
+                        class="text-[10px] font-bold px-3 py-1.5 rounded"
+                        style="color: var(--gold); background: rgba(201,168,76,0.08); border: 1px solid rgba(201,168,76,0.15); cursor: pointer;">
+                        + Balance
+                      </button>
+                    {:else}
+                      <a href={getAccountHref(account)}
+                        class="text-[10px] font-bold px-3 py-1.5 rounded"
+                        style="color: var(--gold); background: rgba(201,168,76,0.08); border: 1px solid rgba(201,168,76,0.15); text-decoration: none;">
+                        View →
+                      </a>
+                    {/if}
                   </td>
                 </tr>
               {/each}
@@ -259,23 +277,33 @@
             <div class="account-row">
               <div class="text-base">{cfg.icon}</div>
               <div class="flex-1 min-w-0">
-                <div class="text-sm font-semibold truncate" style="color: var(--text);">{account.name}</div>
+                <div class="text-sm font-semibold truncate" style="color: var(--text);">{account.name || '—'}</div>
                 <div class="text-[10px]" style="color: var(--text3);">
                   <span class="badge {cfg.badge}" style="font-size: 9px;">{cfg.label}</span>
                   {#if account.bankName} · {account.bankName}{/if}
                 </div>
               </div>
-              <button onclick={() => startBalance(account.id)}
-                class="text-[10px] font-bold px-2.5 py-1.5 rounded-lg"
-                style="color: var(--gold); background: rgba(201,168,76,0.08); border: 1px solid rgba(201,168,76,0.15); cursor: pointer;">
-                + BAL
-              </button>
+              {#if !isApiMode}
+                <button onclick={() => startBalance(account.id || account.name)}
+                  class="text-[10px] font-bold px-2.5 py-1.5 rounded-lg"
+                  style="color: var(--gold); background: rgba(201,168,76,0.08); border: 1px solid rgba(201,168,76,0.15); cursor: pointer;">
+                  + BAL
+                </button>
+              {:else}
+                <a href={getAccountHref(account)}
+                  class="text-[10px] font-bold px-2.5 py-1.5 rounded-lg"
+                  style="color: var(--gold); background: rgba(201,168,76,0.08); border: 1px solid rgba(201,168,76,0.15); text-decoration: none;">
+                  →
+                </a>
+              {/if}
             </div>
           {/each}
         </div>
       {:else}
         <div class="stat-card text-center py-8">
-          <div style="color: var(--text3); font-size: 12px;">No accounts yet. Click "+ ADD" to create one.</div>
+          <div style="color: var(--text3); font-size: 12px;">
+            {isApiMode ? 'No accounts mapped to this entity in the API data.' : 'No accounts yet. Click "+ ADD" to create one.'}
+          </div>
         </div>
       {/if}
     </div>

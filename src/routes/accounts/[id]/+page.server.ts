@@ -1,45 +1,80 @@
-import { getAccounts, getBalances, getConnectorMode } from '$lib/server/data';
+import { getAccounts, getBalances, getEntities, getConnectorMode } from '$lib/server/data';
 import type { PageServerLoad } from './$types';
 
 export const load: PageServerLoad = async ({ params }) => {
   const mode = await getConnectorMode();
   try {
     const [allAccounts, allBalances] = await Promise.all([getAccounts(), getBalances()]);
-    
+
     // Find account by id or name (API mode uses name as id)
-    let account = null;
+    let account: any = null;
     let entity = { name: '—' };
+
     for (const a of allAccounts) {
-      if (a.id === params.id || a.name === params.id || a.account?.name === params.id) {
-        if (a.account) {
-          // DB format
-          account = a.account;
-          entity = a.entity || entity;
-        } else {
-          // API format (flat)
-          account = a;
-          // Match entity by entityName — try exact, then partial
-          const eName = a.entityName;
-          if (eName) {
-            // First try to find entities
-            const entities = await getEntities();
-            const matched = entities.find((e) => e.name === eName || e.id === eName)
-              || entities.find((e) => e.name?.includes(eName) || eName.includes(e.name));
-            if (matched) entity = { name: matched.name };
-            else entity = { name: eName };
-          }
+      if (String(a.id || a.accountId || a.name || '') === String(params.id)) {
+        account = a;
+        // Match entity by entityName
+        const eName = a.entityName;
+        if (eName) {
+          const entities = await getEntities();
+          const matched = entities.find((e: any) =>
+            e.name === eName || e.id === eName ||
+            (e.name && eName && (e.name.includes(eName) || eName.includes(e.name)))
+          );
+          if (matched) entity = { name: matched.name };
+          else entity = { name: eName };
         }
         break;
       }
     }
 
-    const accountId = account?.id || account?.name || params.id;
-    const accountBalances = allBalances.filter((b) => 
-      String(b.accountId || b.account_id || b.name) === accountId
+    if (!account) {
+      return { account: null, entity: { name: '—' }, balances: [], stats: null, anomalies: [], connectorMode: mode };
+    }
+
+    const accountId = account.id || account.name || params.id;
+
+    // Filter balances for this account
+    const accountBalances = allBalances.filter((b: any) =>
+      String(b.accountId || b.account_id || b.id || '') === String(accountId)
     );
 
-    return { account, entity, balances: accountBalances, connectorMode: mode };
-  } catch {
-    return { account: null, entity: { name: '—' }, balances: [], connectorMode: mode };
+    // Sort balances by date descending
+    const sortedBalances = [...accountBalances].sort((a: any, b: any) => {
+      const dateA = new Date(a.date).getTime();
+      const dateB = new Date(b.date).getTime();
+      return dateB - dateA;
+    });
+
+    // Compute stats
+    let stats: any = null;
+    if (sortedBalances.length > 0) {
+      const values = sortedBalances.map((b: any) => parseFloat(b.balance || b.balanceLocal || 0));
+      const latestBalance = values[0];
+      const minBalance = Math.min(...values);
+      const maxBalance = Math.max(...values);
+      const avgBalance = values.reduce((s, v) => s + v, 0) / values.length;
+      const totalChange = values[0] - values[values.length - 1];
+      const totalChangePercent = values[values.length - 1] !== 0
+        ? ((values[0] - values[values.length - 1]) / Math.abs(values[values.length - 1])) * 100
+        : 0;
+
+      stats = {
+        latestBalance,
+        avgBalance,
+        minBalance,
+        maxBalance,
+        totalChange,
+        totalChangePercent,
+        totalEntries: sortedBalances.length,
+        firstDate: sortedBalances[sortedBalances.length - 1]?.date,
+        lastDate: sortedBalances[0]?.date,
+      };
+    }
+
+    return { account, entity, balances: sortedBalances, stats, anomalies: [], connectorMode: mode };
+  } catch (e) {
+    console.error('[AccountDetail] Error:', e);
+    return { account: null, entity: { name: '—' }, balances: [], stats: null, anomalies: [], connectorMode: mode };
   }
 };
