@@ -6,7 +6,7 @@
   let account = $derived(data.account || {});
   let entity = $derived(data.entity || { name: '—' });
   let balances = $derived(data.balances || []);
-  let stats = $derived(data.stats);
+  let stats = $derived(data.stats || { latestBalance: 0, avgBalance: 0, minBalance: 0, maxBalance: 0, changePercent: 0 });
   let anomalies = $derived(data.anomalies || []);
 
   let showBalanceForm = $state(false);
