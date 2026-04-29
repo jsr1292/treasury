@@ -161,6 +161,18 @@ function mapFields(rows: any[], fields: Record<string, string>): any[] {
     }
     return mapped;
   });
+
+  // Auto-link branches to headquarters by matching Empresa field
+  const hq = mappedRows.find(e => e.type === 'headquarters');
+  if (hq) {
+    for (const row of mappedRows) {
+      if (row.type === 'branch' && !row.parentId) {
+        row.parentId = hq.id;
+      }
+    }
+  }
+
+  return mappedRows;
 }
 
 // ─── Public API ───────────────────────────────────────────────────
