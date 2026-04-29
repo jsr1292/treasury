@@ -4,13 +4,33 @@ import type { PageServerLoad } from './$types';
 export const load: PageServerLoad = async ({ params }) => {
   const mode = await getConnectorMode();
   try {
-    const [accounts, balances] = await Promise.all([getAccounts(), getBalances()]);
-    const account = accounts.find((a: any) => a.id === params.id);
-    const accountBalances = balances.filter((b: any) => 
-      String(b.accountId || b.account_id) === params.id
+    const [allAccounts, allBalances] = await Promise.all([getAccounts(), getBalances()]);
+    
+    // Find account by id or name (API mode uses name as id)
+    let account = null;
+    let entity = { name: '—' };
+    for (const a of allAccounts) {
+      if (a.id === params.id || a.name === params.id || a.account?.name === params.id) {
+        if (a.account) {
+          // DB format
+          account = a.account;
+          entity = a.entity || entity;
+        } else {
+          // API format (flat)
+          account = a;
+          entity = { name: a.entityName || '—' };
+        }
+        break;
+      }
+    }
+
+    const accountId = account?.id || account?.name || params.id;
+    const accountBalances = allBalances.filter((b) => 
+      String(b.accountId || b.account_id || b.name) === accountId
     );
-    return { account: account || null, balances: accountBalances, connectorMode: mode };
+
+    return { account, entity, balances: accountBalances, connectorMode: mode };
   } catch {
-    return { account: null, balances: [], connectorMode: mode };
+    return { account: null, entity: { name: '—' }, balances: [], connectorMode: mode };
   }
 };

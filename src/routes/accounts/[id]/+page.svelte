@@ -3,8 +3,8 @@
   import { ACCOUNT_TYPES } from '$lib/constants';
   let { data } = $props();
 
-  let account = $derived(data.account);
-  let entity = $derived(data.entity);
+  let account = $derived(data.account || {});
+  let entity = $derived(data.entity || { name: '—' });
   let balances = $derived(data.balances || []);
   let stats = $derived(data.stats);
   let anomalies = $derived(data.anomalies || []);
