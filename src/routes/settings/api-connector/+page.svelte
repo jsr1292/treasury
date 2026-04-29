@@ -116,7 +116,13 @@
           const pairs = [];
           if (d.id || d.accountName) pairs.push(`id:${d.id || d.accountName}`);
           if (d.name || d.accountName) pairs.push(`name:${d.name || d.accountName}`);
-          if (d.entityId || d.parentName) pairs.push(`entityName:${d.entityId || d.parentName}`);
+          if (d.entityId || d.parentName) pairs.push(`entityName:${d.parentName || d.entityId}`);
+          // Also try Sucursal / Filial as entityName if parentName didn't match
+          if (!d.entityId && !d.parentName && detectResults.accounts?.sample) {
+            const sample = detectResults.accounts.sample;
+            const sucKey = Object.keys(sample).find(k => /sucursal.*filial|filial.*sucursal/i.test(k));
+            if (sucKey && !pairs.some(p => p.startsWith('entityName:'))) pairs.push(`entityName:${sucKey}`);
+          }
           if (d.type || d.accountType) pairs.push(`type:${d.type || d.accountType}`);
           if (d.currency) pairs.push(`currency:${d.currency}`);
           if (d.bankName) pairs.push(`bankName:${d.bankName}`);

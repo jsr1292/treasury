@@ -12,7 +12,9 @@ export const load: PageServerLoad = async () => {
       // API format — match entity by entityName
       let entityName = a.entityName || '—';
       if (a.entityName) {
-        const matched = allEntities.find((e) => e.name === a.entityName || e.id === a.entityName)
+        // First try exact match against entity name (from "Nombre" field)
+        const matched = allEntities.find((e) => e.name === a.entityName)
+          || allEntities.find((e) => e.id === a.entityName)
           || allEntities.find((e) => e.name?.includes(a.entityName) || a.entityName.includes(e.name));
         if (matched) entityName = matched.name;
       }
