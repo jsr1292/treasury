@@ -150,10 +150,20 @@ function mapFields(rows: any[], fields: Record<string, string>): any[] {
     if (mapped.type) {
       mapped.type = normalizeType(mapped.type);
     }
-    // Normalize currency: extract ISO code from "Name (XXX)"
+    // Normalize currency: extract ISO code from "Name (XXX)" or "4.000,69 EUR"
     if (mapped.currency) {
-      const match = String(mapped.currency).match(/\(([A-Z]{3})\)/);
-      if (match) mapped.currency = match[1];
+      const isoMatch = String(mapped.currency).match(/\b([A-Z]{3})\b/);
+      if (isoMatch) {
+        mapped.currency = isoMatch[1];
+      } else {
+        const parenMatch = String(mapped.currency).match(/\(([A-Z]{3})\)/);
+        if (parenMatch) mapped.currency = parenMatch[1];
+      }
+    }
+    // If no currency but balanceLocal has it (e.g. "4.000,69 EUR"), extract from there
+    if (!mapped.currency && mapped.balanceLocal) {
+      const curMatch = String(mapped.balanceLocal).match(/\b([A-Z]{3})\b/);
+      if (curMatch) mapped.currency = curMatch[1];
     }
     // Normalize balance: parse European format "4.000,69" → 4000.69
     if (mapped.balance) {

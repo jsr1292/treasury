@@ -116,7 +116,7 @@
           const pairs = [];
           if (d.id || d.accountName) pairs.push(`id:${d.id || d.accountName}`);
           if (d.name || d.accountName) pairs.push(`name:${d.name || d.accountName}`);
-          if (d.entityId || d.parentName) pairs.push(`entityId:${d.entityId || d.parentName}`);
+          if (d.entityId || d.parentName) pairs.push(`entityName:${d.entityId || d.parentName}`);
           if (d.type || d.accountType) pairs.push(`type:${d.type || d.accountType}`);
           if (d.currency) pairs.push(`currency:${d.currency}`);
           if (d.bankName) pairs.push(`bankName:${d.bankName}`);
