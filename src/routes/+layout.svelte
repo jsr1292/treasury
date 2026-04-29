@@ -120,6 +120,78 @@
     const match = navFlat.find(n => path.startsWith(n.href) && n.href !== '/');
     return match?.label || '';
   });
+
+  // ─── Refresh & Auto-refresh ───────────────────────────────────────
+  let lastRefreshed = $state<Date | null>(null);
+  let autoRefreshEnabled = $state(false);
+  let refreshInterval = $state(0); // minutes, from connector config
+  let autoRefreshTimer: ReturnType<typeof setInterval> | null = null;
+
+  // Load last refreshed from localStorage, use server refreshInterval as default
+  $effect(() => {
+    if (typeof window !== 'undefined') {
+      const stored = localStorage.getItem('treasury-last-refreshed');
+      if (stored) {
+        lastRefreshed = new Date(parseInt(stored, 10));
+      }
+      const storedAuto = localStorage.getItem('treasury-auto-refresh');
+      autoRefreshEnabled = storedAuto === 'true';
+      // Use server-provided refreshInterval if available, otherwise localStorage
+      const serverInterval = data.refreshInterval || 0;
+      refreshInterval = serverInterval || parseInt(localStorage.getItem('treasury-refresh-interval') || '0', 10) || 0;
+      if (serverInterval && serverInterval !== refreshInterval) {
+        refreshInterval = serverInterval;
+        localStorage.setItem('treasury-refresh-interval', String(refreshInterval));
+      }
+    }
+  });
+
+  // Auto-refresh timer
+  $effect(() => {
+    if (typeof window === 'undefined') return;
+    
+    if (autoRefreshEnabled && refreshInterval > 0) {
+      stopAutoRefresh();
+      autoRefreshTimer = setInterval(() => {
+        doRefresh();
+      }, refreshInterval * 60 * 1000);
+    } else {
+      stopAutoRefresh();
+    }
+    
+    return () => stopAutoRefresh();
+  });
+
+  function stopAutoRefresh() {
+    if (autoRefreshTimer) {
+      clearInterval(autoRefreshTimer);
+      autoRefreshTimer = null;
+    }
+  }
+
+  async function doRefresh() {
+    try {
+      await fetch('/api/connector/refresh', { method: 'POST' });
+      lastRefreshed = new Date();
+      localStorage.setItem('treasury-last-refreshed', lastRefreshed.getTime().toString());
+      window.location.reload();
+    } catch (e) {
+      console.error('Refresh failed:', e);
+    }
+  }
+
+  function toggleAutoRefresh() {
+    autoRefreshEnabled = !autoRefreshEnabled;
+    localStorage.setItem('treasury-auto-refresh', String(autoRefreshEnabled));
+  }
+
+  function getRefreshLabel() {
+    if (!lastRefreshed) return null;
+    const mins = Math.floor((Date.now() - lastRefreshed.getTime()) / 60000);
+    if (mins < 1) return 'just now';
+    if (mins === 1) return '1 min ago';
+    return `${mins} min ago`;
+  }
 </script>
 
 <div class="min-h-screen" style="background: var(--bg-dark); color: var(--text);">
@@ -295,6 +367,29 @@
               <span style="color: var(--red); font-size: 11px; font-weight: 600;">{data.anomalies.length}</span>
             </button>
           {/if}
+
+          <!-- Refresh button -->
+          <button
+            onclick={doRefresh}
+            title="Refresh data"
+            class="flex items-center justify-center w-8 h-8 rounded-lg cursor-pointer transition-colors"
+            style="background: rgba(201,168,76,0.08); border: 1px solid rgba(201,168,76,0.15);"
+            onmouseenter={(e) => { e.currentTarget.style.background = 'rgba(201,168,76,0.15)'; }}
+            onmouseleave={(e) => { e.currentTarget.style.background = 'rgba(201,168,76,0.08)'; }}
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="var(--gold)" stroke-width="2" style="width:14px;height:14px;">
+              <path d="M1 4v6h6M23 20v-6h-6" stroke-linecap="round" stroke-linejoin="round"/>
+              <path d="M20.49 9A9 9 0 0 0 5.64 5.64L1 10m22 4l-4.64 4.36A9 9 0 0 1 3.51 15" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </button>
+
+          <!-- Last refreshed indicator -->
+          {#if lastRefreshed}
+            <div class="text-[10px] mono" style="color: var(--text3);" title="Last refreshed">
+              {getRefreshLabel()}
+            </div>
+          {/if}
+
           <div class="text-[10px] mono" style="color: var(--text3);">
             {new Date().toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })}
           </div>

@@ -1,4 +1,5 @@
 import { getFxRates, getAnomalies, getConnectorMode, getCompanyList } from '$lib/server/data';
+import { getCompanyConnector } from '$lib/connector/loader';
 import type { LayoutServerLoad } from './$types.js';
 
 export const load: LayoutServerLoad = async ({ cookies }) => {
@@ -8,6 +9,17 @@ export const load: LayoutServerLoad = async ({ cookies }) => {
   const selectedCompany = companies[companyIndex] || companies[0] || { name: 'All Companies', index: -1 };
   const mode = await getConnectorMode(companyIndex);
 
+  // Load refreshInterval from connector config
+  let refreshInterval = 0;
+  try {
+    const connector = getCompanyConnector(companyIndex);
+    if (connector && (connector as any).refreshInterval) {
+      refreshInterval = (connector as any).refreshInterval;
+    }
+  } catch {
+    // Ignore
+  }
+
   if (mode === 'setup') {
     return {
       connectorMode: mode,
@@ -16,6 +28,7 @@ export const load: LayoutServerLoad = async ({ cookies }) => {
       companies,
       selectedCompany,
       isMultiCompany: isMulti,
+      refreshInterval,
     };
   }
 
@@ -31,5 +44,6 @@ export const load: LayoutServerLoad = async ({ cookies }) => {
     companies,
     selectedCompany,
     isMultiCompany: isMulti,
+    refreshInterval,
   };
 };
