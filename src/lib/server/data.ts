@@ -40,11 +40,10 @@ async function getDb() {
 
 // ─── Companies ────────────────────────────────────────────────────
 
-export function getCompanyList(): { name: string; index: number }[] {
-  // Dynamic import to avoid circular deps
-  const { getCompanies } = require('$lib/connector/loader');
+export async function getCompanyList(): Promise<{ name: string; index: number }[]> {
+  const { getCompanies } = await import('$lib/connector/loader');
   const companies = getCompanies();
-  return companies.map((c: any, i: number) => ({ name: c.name, index: i }));
+  return companies.map((c, i) => ({ name: c.name || `Company ${i + 1}`, index: i }));
 }
 
 // ─── Entities ─────────────────────────────────────────────────────

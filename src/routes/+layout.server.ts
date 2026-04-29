@@ -4,7 +4,7 @@ import type { LayoutServerLoad } from './$types.js';
 
 export const load: LayoutServerLoad = async ({ cookies }) => {
   const companyIndex = parseInt(cookies.get('company') || '0', 10);
-  const companies = getCompanyList();
+  const companies = await getCompanyList();
   const isMulti = companies.length > 1;
   const selectedCompany = companies[companyIndex] || companies[0] || { name: 'All Companies', index: -1 };
   const mode = await getConnectorMode(companyIndex);
