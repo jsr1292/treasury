@@ -32,6 +32,11 @@
   let accountApiFields = $state<string[]>([]);
   let balanceApiFields = $state<string[]>([]);
 
+  // Sample values per endpoint
+  let entitySamples = $state<Record<string, string>>({});
+  let accountSamples = $state<Record<string, string>>({});
+  let balanceSamples = $state<Record<string, string>>({});
+
   // Extra
   let connectorName = $state('');
   let cacheTtl = $state(1800);
@@ -149,11 +154,21 @@
         error = result.error;
       } else {
         error = '';
-        // Store the detected API fields
+        // Store the detected API fields and sample values
         const apiKeys = result.keys || [];
-        if (endpoint === 'entities') { entityApiFields = apiKeys; if (result.suggestedDataPath) entitiesDataPath = result.suggestedDataPath; }
-        else if (endpoint === 'accounts') { accountApiFields = apiKeys; if (result.suggestedDataPath) accountsDataPath = result.suggestedDataPath; }
-        else { balanceApiFields = apiKeys; if (result.suggestedDataPath) balancesDataPath = result.suggestedDataPath; }
+        const samples: Record<string, string> = {};
+        if (result.sample) {
+          for (const key of apiKeys) {
+            const val = result.sample[key];
+            if (val !== undefined && val !== null && val !== '') {
+              samples[key] = typeof val === 'object' ? JSON.stringify(val) : String(val);
+              if (samples[key].length > 30) samples[key] = samples[key].substring(0, 30) + '…';
+            }
+          }
+        }
+        if (endpoint === 'entities') { entityApiFields = apiKeys; entitySamples = samples; if (result.suggestedDataPath) entitiesDataPath = result.suggestedDataPath; }
+        else if (endpoint === 'accounts') { accountApiFields = apiKeys; accountSamples = samples; if (result.suggestedDataPath) accountsDataPath = result.suggestedDataPath; }
+        else { balanceApiFields = apiKeys; balanceSamples = samples; if (result.suggestedDataPath) balancesDataPath = result.suggestedDataPath; }
 
         // Auto-apply detected mappings
         const d = result.detected;
@@ -272,7 +287,7 @@
     </div>
     {#if entityApiFields.length > 0}
       <div style="margin-top: 12px;">
-        <FieldMapper apiFields={entityApiFields} internalFields={entityInternalFields} bind:connections={entityConnections} />
+        <FieldMapper apiFields={entityApiFields} internalFields={entityInternalFields} bind:connections={entityConnections} sampleValues={entitySamples} />
       </div>
     {/if}
   </div>
@@ -292,7 +307,7 @@
     </div>
     {#if accountApiFields.length > 0}
       <div style="margin-top: 12px;">
-        <FieldMapper apiFields={accountApiFields} internalFields={accountInternalFields} bind:connections={accountConnections} />
+        <FieldMapper apiFields={accountApiFields} internalFields={accountInternalFields} bind:connections={accountConnections} sampleValues={accountSamples} />
       </div>
     {/if}
   </div>
@@ -315,7 +330,7 @@
     </div>
     {#if balanceApiFields.length > 0}
       <div style="margin-top: 12px;">
-        <FieldMapper apiFields={balanceApiFields} internalFields={balanceInternalFields} bind:connections={balanceConnections} />
+        <FieldMapper apiFields={balanceApiFields} internalFields={balanceInternalFields} bind:connections={balanceConnections} sampleValues={balanceSamples} />
       </div>
     {/if}
   </div>
