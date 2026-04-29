@@ -18,7 +18,16 @@ export const load: PageServerLoad = async ({ params }) => {
         } else {
           // API format (flat)
           account = a;
-          entity = { name: a.entityName || '—' };
+          // Match entity by entityName — try exact, then partial
+          const eName = a.entityName;
+          if (eName) {
+            // First try to find entities
+            const entities = await getEntities();
+            const matched = entities.find((e) => e.name === eName || e.id === eName)
+              || entities.find((e) => e.name?.includes(eName) || eName.includes(e.name));
+            if (matched) entity = { name: matched.name };
+            else entity = { name: eName };
+          }
         }
         break;
       }
