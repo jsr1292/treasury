@@ -12,6 +12,7 @@ export const ACCOUNT_TYPES = {
   savings: { label: 'Savings', icon: '💰', badge: 'badge-green' },
   deposit: { label: 'Deposit', icon: '📋', badge: 'badge-green' },
   bond: { label: 'Bond', icon: '📜', badge: 'badge-gold' },
+  credit: { label: 'Credit Line', icon: '💳', badge: 'badge-red' },
   other: { label: 'Other', icon: '💳', badge: 'badge-gold' },
 };
 

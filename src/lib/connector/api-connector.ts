@@ -125,11 +125,29 @@ const TYPE_MAP: Record<string, string> = {
   'sucursal del perú': 'branch', 'sucursal del brasil': 'branch',
 };
 
+const ACCOUNT_TYPE_MAP: Record<string, string> = {
+  'cuenta corriente': 'bank', 'corriente': 'bank', 'checking': 'bank',
+  'current account': 'bank', 'cuenta de ahorro': 'savings', 'ahorro': 'savings',
+  'savings': 'savings', 'depósito': 'deposit', 'deposito': 'deposit',
+  'deposit': 'deposit', 'plazo fijo': 'deposit', 'certificado': 'deposit',
+  'bono': 'bond', 'bond': 'bond', 'bono de inversión': 'bond',
+  'inversión': 'bond', 'inversion': 'bond', 'investment': 'bond',
+  'línea de crédito': 'credit', 'linea de credito': 'credit', 'credit': 'credit',
+  'loan': 'credit', 'préstamo': 'credit', 'prestamo': 'credit',
+  'bank': 'bank', 'other': 'other',
+};
+
 function normalizeType(val: string): string {
   if (!val) return val;
   const lower = val.toLowerCase().trim();
+  // Entity types
   if (TYPE_MAP[lower]) return TYPE_MAP[lower];
   for (const [key, mapped] of Object.entries(TYPE_MAP)) {
+    if (lower.includes(key) || key.includes(lower)) return mapped;
+  }
+  // Account types
+  if (ACCOUNT_TYPE_MAP[lower]) return ACCOUNT_TYPE_MAP[lower];
+  for (const [key, mapped] of Object.entries(ACCOUNT_TYPE_MAP)) {
     if (lower.includes(key) || key.includes(lower)) return mapped;
   }
   return val;
