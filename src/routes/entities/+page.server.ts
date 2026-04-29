@@ -1,7 +1,11 @@
-import { getEntities } from '$lib/server/db/queries';
+import { getEntities } from '$lib/server/data';
 import type { PageServerLoad } from './$types';
 
 export const load: PageServerLoad = async () => {
-  const allEntities = await getEntities();
-  return { entities: allEntities };
+  try {
+    const allEntities = await getEntities();
+    return { entities: allEntities };
+  } catch {
+    return { entities: [] };
+  }
 };
