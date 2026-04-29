@@ -119,13 +119,17 @@ function extractData(json: any, dataPath?: string): any {
 function mapFields(rows: any[], fields: Record<string, string>): any[] {
   if (!rows || !Array.isArray(rows)) return [];
   
-  return rows.map(row => {
+  return rows.map((row, index) => {
     const mapped: Record<string, string> = {};
     // fields: { ourField: theirField }
     for (const [ourField, theirField] of Object.entries(fields)) {
       if (row[theirField] !== undefined) {
         mapped[ourField] = row[theirField];
       }
+    }
+    // Ensure id exists for navigation
+    if (!mapped.id) {
+      mapped.id = mapped.name || String(index + 1);
     }
     return mapped;
   });

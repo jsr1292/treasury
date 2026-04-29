@@ -1,7 +1,7 @@
 import { readFileSync, writeFileSync, existsSync } from 'fs';
 import { join } from 'path';
 import type { RequestHandler } from './$types';
-import { validateConnector } from '$lib/connector/loader';
+import { validateConnector, clearConnectorCache } from '$lib/connector/loader';
 
 export const POST: RequestHandler = async ({ request }) => {
   try {
@@ -16,6 +16,7 @@ export const POST: RequestHandler = async ({ request }) => {
     // Write connector.json
     const path = join(process.cwd(), 'connector.json');
     writeFileSync(path, JSON.stringify(config, null, 2), 'utf8');
+    clearConnectorCache();
 
     return new Response(JSON.stringify({ ok: true }), {
       headers: { 'Content-Type': 'application/json' },

@@ -6,6 +6,10 @@ import { defaultConnector } from './types';
 
 let cachedConnector: ConnectorConfig | ApiConnectorConfig | null = null;
 
+export function clearConnectorCache() {
+  cachedConnector = null;
+}
+
 export type UnifiedConnector = 
   | { mode: 'database'; config: ConnectorConfig }
   | { mode: 'api'; config: ApiConnectorConfig };
@@ -55,11 +59,8 @@ export function validateConnector(config: any): string[] {
   if (config.type === 'api') {
     // API connector validation
     if (!config.entities?.url) errors.push('entities.url is required');
-    if (!config.entities?.fields) errors.push('entities.fields mapping is required');
-    if (!config.accounts?.url) errors.push('accounts.url is required');
-    if (!config.accounts?.fields) errors.push('accounts.fields mapping is required');
-    if (!config.balances?.url) errors.push('balances.url is required');
-    if (!config.balances?.fields) errors.push('balances.fields mapping is required');
+    if (!config.entities?.fields || Object.keys(config.entities.fields).length === 0) errors.push('entities.fields mapping is required');
+    // accounts and balances are optional
   } else {
     // Database connector validation (existing)
     if (!config.entities?.table) errors.push('entities.table is required');
