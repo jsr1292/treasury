@@ -4,7 +4,7 @@ import type { PageServerLoad } from './$types.js';
 export const load: PageServerLoad = async ({ cookies }) => {
   const companyIndex = parseInt(cookies.get('company') || '0', 10);
   const mode = await getConnectorMode(companyIndex);
-  const companies = getCompanyList();
+  const companies = await getCompanyList();
   const isConsolidated = companyIndex === -1;
 
   if (mode === 'api') {
@@ -194,6 +194,7 @@ function buildDashboardData(entities: any[], accounts: any[], balances: any[], m
   };
 
   return {
+    accounts: enrichedAccounts,
     balances: enrichedAccounts,
     entities,
     totalsByCurrency,
