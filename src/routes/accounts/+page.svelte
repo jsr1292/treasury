@@ -5,7 +5,7 @@
   // Normalize: API returns flat {name, type, ...}, DB returns {account, entity}
   const accounts = (data.accounts || []).map((a) => {
     if (a.account) return a; // DB format
-    return { account: a, entity: { name: a.entityName || a.entityId || a.name || '—' } }; // API format
+    return { account: a, entity: { name: a.entityName || '—' } }; // API format
   });
 </script>
 

@@ -120,6 +120,7 @@
           if (d.type || d.accountType) pairs.push(`type:${d.type || d.accountType}`);
           if (d.currency) pairs.push(`currency:${d.currency}`);
           if (d.bankName) pairs.push(`bankName:${d.bankName}`);
+          if (d.balanceLocal) pairs.push(`balanceLocal:${d.balanceLocal}`);
           accountFields = pairs.join(', ');
           if (result.suggestedDataPath) accountsDataPath = result.suggestedDataPath;
         } else {
