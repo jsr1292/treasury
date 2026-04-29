@@ -2,9 +2,8 @@ import { getFxRates, getAnomalies, getConnectorMode } from '$lib/server/data';
 import type { LayoutServerLoad } from './$types.js';
 
 export const load: LayoutServerLoad = async () => {
-  const mode = getConnectorMode();
+  const mode = await getConnectorMode();
 
-  // In setup mode, return empty data — user hasn't configured anything yet
   if (mode === 'setup') {
     return {
       connectorMode: mode,

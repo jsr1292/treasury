@@ -3,7 +3,7 @@ import { isDatabaseAvailable } from '$lib/server/data';
 import type { PageServerLoad } from './$types.js';
 
 export const load: PageServerLoad = async () => {
-  const mode = getConnectorMode();
+  const mode = await getConnectorMode();
   const dash = await getDashboard();
 
   // Investment summary — only available in database mode

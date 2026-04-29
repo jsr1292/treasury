@@ -2,7 +2,7 @@ import { getEntities, getConnectorMode } from '$lib/server/data';
 import type { PageServerLoad } from './$types';
 
 export const load: PageServerLoad = async () => {
-  const mode = getConnectorMode();
+  const mode = await getConnectorMode();
   try {
     const allEntities = await getEntities();
     const tree = buildTree(allEntities);

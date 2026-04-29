@@ -2,7 +2,7 @@ import { getAccounts, getBalances, getConnectorMode } from '$lib/server/data';
 import type { PageServerLoad } from './$types';
 
 export const load: PageServerLoad = async ({ params }) => {
-  const mode = getConnectorMode();
+  const mode = await getConnectorMode();
   try {
     const [accounts, balances] = await Promise.all([getAccounts(), getBalances()]);
     const account = accounts.find((a: any) => a.id === params.id);

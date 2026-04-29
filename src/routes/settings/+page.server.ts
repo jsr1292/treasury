@@ -5,7 +5,7 @@ import { readFileSync, existsSync } from 'fs';
 import { join } from 'path';
 
 export const load: PageServerLoad = async () => {
-  const mode = getConnectorMode();
+  const mode = await getConnectorMode();
   
   let connector = null;
   let errors: string[] = [];

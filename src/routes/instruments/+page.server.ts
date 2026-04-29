@@ -2,7 +2,7 @@ import { getAccounts, getConnectorMode } from '$lib/server/data';
 import type { PageServerLoad } from './$types';
 
 export const load: PageServerLoad = async () => {
-  const mode = getConnectorMode();
+  const mode = await getConnectorMode();
   if (mode !== 'database') {
     return { instruments: [], totalDeposits: 0, totalBonds: 0, totalYield: 0, connectorMode: mode };
   }
