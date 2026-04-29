@@ -17,7 +17,7 @@
 
 <div class="max-w-2xl mx-auto px-4 py-6">
   <h1 class="text-2xl font-black mb-1">⚙️ Settings</h1>
-  <p class="text-sm text-[var(--text-secondary)] mb-6">Database connector configuration · <a href="/settings/mapper" class="text-[var(--accent)] hover:underline font-semibold">🗺️ Interactive Mapper</a></p>
+  <p class="text-sm text-[var(--text-secondary)] mb-6">Database connector configuration · <a href="/settings/mapper" class="text-[var(--accent)] hover:underline font-semibold">🗺️ Interactive Mapper</a> · <a href="/settings/api-connector" class="text-[var(--accent)] hover:underline font-semibold">🔌 API Connector</a></p>
 
   <!-- Connection status -->
   <div class="bg-[var(--bg-card)] border border-[var(--border)] rounded-2xl p-4 mb-6">
