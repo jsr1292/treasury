@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
+  import FieldMapper from '$lib/components/FieldMapper.svelte';
 
   let { data } = $props();
 
@@ -16,15 +17,20 @@
   let accountsUrl = $state('');
   let balancesUrl = $state('');
 
-  // Data paths (auto-detected)
+  // Data paths
   let entitiesDataPath = $state('');
   let accountsDataPath = $state('');
   let balancesDataPath = $state('');
 
-  // Field mappings (auto-detected, comma-separated: ourField:theirField)
-  let entityFields = $state('');
-  let accountFields = $state('');
-  let balanceFields = $state('');
+  // Visual mapper connections: { apiField: internalKey }
+  let entityConnections = $state<Record<string, string>>({});
+  let accountConnections = $state<Record<string, string>>({});
+  let balanceConnections = $state<Record<string, string>>({});
+
+  // Detected API fields per endpoint
+  let entityApiFields = $state<string[]>([]);
+  let accountApiFields = $state<string[]>([]);
+  let balanceApiFields = $state<string[]>([]);
 
   // Extra
   let connectorName = $state('');
@@ -38,7 +44,37 @@
   let testResult = $state<{ ok: boolean; message: string; latencyMs: number } | null>(null);
   let error = $state('');
   let detecting = $state('');
-  let detectResults = $state<Record<string, any>>({});
+
+  // Internal field definitions per endpoint
+  const entityInternalFields = [
+    { key: 'name', label: 'Name', required: true },
+    { key: 'type', label: 'Type' },
+    { key: 'currency', label: 'Currency' },
+    { key: 'country', label: 'Country' },
+    { key: 'parentId', label: 'Parent' },
+    { key: 'id', label: 'ID' },
+    { key: 'taxId', label: 'Tax ID' },
+  ];
+
+  const accountInternalFields = [
+    { key: 'name', label: 'Account Name', required: true },
+    { key: 'entityName', label: 'Entity', required: true },
+    { key: 'type', label: 'Account Type' },
+    { key: 'bankName', label: 'Bank' },
+    { key: 'currency', label: 'Currency' },
+    { key: 'country', label: 'Country' },
+    { key: 'id', label: 'ID' },
+  ];
+
+  const balanceInternalFields = [
+    { key: 'accountId', label: 'Account', required: true },
+    { key: 'balance', label: 'Balance (EUR)', required: true },
+    { key: 'date', label: 'Date' },
+    { key: 'entityName', label: 'Entity' },
+    { key: 'bankName', label: 'Bank' },
+    { key: 'balanceLocal', label: 'Balance (local)' },
+    { key: 'currency', label: 'Currency' },
+  ];
 
   // Load existing config
   onMount(() => {
@@ -59,93 +95,30 @@
       entitiesDataPath = c.entities?.dataPath || '';
       accountsDataPath = c.accounts?.dataPath || '';
       balancesDataPath = c.balances?.dataPath || '';
-      entityFields = fieldsToStr(c.entities?.fields);
-      accountFields = fieldsToStr(c.accounts?.fields);
-      balanceFields = fieldsToStr(c.balances?.fields);
+      // Reverse connections from { our: their } to { their: our } for the mapper
+      entityConnections = reverseMap(c.entities?.fields);
+      accountConnections = reverseMap(c.accounts?.fields);
+      balanceConnections = reverseMap(c.balances?.fields);
     }
   });
 
-  function fieldsToStr(fields: Record<string, string>): string {
-    if (!fields) return '';
-    return Object.entries(fields)
-      .map(([our, their]) => our === their ? our : `${our}:${their}`)
-      .join(', ');
-  }
-
-  function getAuthHeaders(): Record<string, string> {
-    const h: Record<string, string> = {};
-    if (authType === 'bearer') h['Authorization'] = `Bearer ${authToken}`;
-    else if (authType === 'basic') h['Authorization'] = `Basic ${btoa(`${authUsername}:${authPassword}`)}`;
-    else if (authType === 'api-key') h[authHeaderName] = authApiKey;
-    return h;
-  }
-
-  async function autoDetect(endpoint: 'entities' | 'accounts' | 'balances') {
-    const urls = { entities: entitiesUrl, accounts: accountsUrl, balances: balancesUrl || accountsUrl };
-    const url = urls[endpoint];
-    if (!url) return;
-
-    detecting = endpoint;
-    try {
-      const res = await fetch('/api/connector/detect', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url, auth: getAuthPayload(), dataPath: endpoint === 'entities' ? entitiesDataPath : endpoint === 'accounts' ? accountsDataPath : balancesDataPath }),
-      });
-      const result = await res.json();
-      detectResults[endpoint] = result;
-
-      if (result.error) {
-        error = result.error;
-      } else {
-        // Apply detected mappings
-        const d = result.detected;
-        const path = endpoint;
-        
-        if (endpoint === 'entities') {
-          const pairs = [];
-          if (d.id) pairs.push(`id:${d.id}`);
-          if (d.name) pairs.push(`name:${d.name}`);
-          if (d.type) pairs.push(`type:${d.type}`);
-          if (d.currency) pairs.push(`currency:${d.currency}`);
-          if (d.parentId) pairs.push(`parentId:${d.parentId}`);
-          if (d.country) pairs.push(`country:${d.country}`);
-          entityFields = pairs.join(', ');
-          if (result.suggestedDataPath) entitiesDataPath = result.suggestedDataPath;
-        } else if (endpoint === 'accounts') {
-          const pairs = [];
-          if (d.id || d.accountName) pairs.push(`id:${d.id || d.accountName}`);
-          if (d.name || d.accountName) pairs.push(`name:${d.name || d.accountName}`);
-          if (d.entityId || d.parentName) pairs.push(`entityName:${d.parentName || d.entityId}`);
-          // Also try Sucursal / Filial as entityName if parentName didn't match
-          if (!d.entityId && !d.parentName && detectResults.accounts?.sample) {
-            const sample = detectResults.accounts.sample;
-            const sucKey = Object.keys(sample).find(k => /sucursal.*filial|filial.*sucursal/i.test(k));
-            if (sucKey && !pairs.some(p => p.startsWith('entityName:'))) pairs.push(`entityName:${sucKey}`);
-          }
-          if (d.type || d.accountType) pairs.push(`type:${d.type || d.accountType}`);
-          if (d.currency) pairs.push(`currency:${d.currency}`);
-          if (d.bankName) pairs.push(`bankName:${d.bankName}`);
-          if (d.balanceLocal) pairs.push(`balanceLocal:${d.balanceLocal}`);
-          accountFields = pairs.join(', ');
-          if (result.suggestedDataPath) accountsDataPath = result.suggestedDataPath;
-        } else {
-          const pairs = [];
-          if (d.accountId || d.accountName) pairs.push(`accountId:${d.accountId || d.accountName}`);
-          if (d.entityId) pairs.push(`entityId:${d.entityId}`);
-          if (d.date || d.registeredDate) pairs.push(`date:${d.date || d.registeredDate}`);
-          if (d.balance || d.balanceEur) pairs.push(`balance:${d.balance || d.balanceEur}`);
-          if (d.balanceLocal) pairs.push(`balanceLocal:${d.balanceLocal}`);
-          if (d.currency) pairs.push(`currency:${d.currency}`);
-          balanceFields = pairs.join(', ');
-          if (result.suggestedDataPath) balancesDataPath = result.suggestedDataPath;
-        }
-        error = '';
-      }
-    } catch (e: any) {
-      error = e.message;
+  // fields stored as { ourField: theirField } but mapper uses { theirField: ourField }
+  function reverseMap(fields: Record<string, string>): Record<string, string> {
+    if (!fields) return {};
+    const reversed: Record<string, string> = {};
+    for (const [our, their] of Object.entries(fields)) {
+      reversed[their] = our;
     }
-    detecting = '';
+    return reversed;
+  }
+
+  // Convert mapper connections back to { ourField: theirField } for saving
+  function connectionsToFields(conns: Record<string, string>): Record<string, string> {
+    const fields: Record<string, string> = {};
+    for (const [apiField, internalKey] of Object.entries(conns)) {
+      fields[internalKey] = apiField;
+    }
+    return fields;
   }
 
   function getAuthPayload() {
@@ -156,13 +129,46 @@
     return auth;
   }
 
-  function parseFields(str: string): Record<string, string> {
-    const fields: Record<string, string> = {};
-    for (const f of str.split(',').map(s => s.trim()).filter(Boolean)) {
-      const [our, their] = f.includes(':') ? f.split(':') : [f, f];
-      fields[our.trim()] = their.trim();
+  async function autoDetect(endpoint: 'entities' | 'accounts' | 'balances') {
+    const urls = { entities: entitiesUrl, accounts: accountsUrl, balances: balancesUrl || accountsUrl };
+    const url = urls[endpoint];
+    if (!url) return;
+
+    const dataPath = endpoint === 'entities' ? entitiesDataPath : endpoint === 'accounts' ? accountsDataPath : balancesDataPath;
+    
+    detecting = endpoint;
+    try {
+      const res = await fetch('/api/connector/detect', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url, auth: getAuthPayload(), dataPath }),
+      });
+      const result = await res.json();
+
+      if (result.error) {
+        error = result.error;
+      } else {
+        error = '';
+        // Store the detected API fields
+        const apiKeys = result.keys || [];
+        if (endpoint === 'entities') { entityApiFields = apiKeys; if (result.suggestedDataPath) entitiesDataPath = result.suggestedDataPath; }
+        else if (endpoint === 'accounts') { accountApiFields = apiKeys; if (result.suggestedDataPath) accountsDataPath = result.suggestedDataPath; }
+        else { balanceApiFields = apiKeys; if (result.suggestedDataPath) balancesDataPath = result.suggestedDataPath; }
+
+        // Auto-apply detected mappings
+        const d = result.detected;
+        const conns: Record<string, string> = {};
+        for (const [internalKey, apiField] of Object.entries(d)) {
+          if (apiField) conns[apiField] = internalKey;
+        }
+        if (endpoint === 'entities') entityConnections = conns;
+        else if (endpoint === 'accounts') accountConnections = conns;
+        else balanceConnections = conns;
+      }
+    } catch (e: any) {
+      error = e.message;
     }
-    return fields;
+    detecting = '';
   }
 
   function buildConfig() {
@@ -173,9 +179,9 @@
       auth: getAuthPayload(),
       cacheTtl,
       timeout,
-      entities: { url: entitiesUrl, fields: parseFields(entityFields), ...(entitiesDataPath ? { dataPath: entitiesDataPath } : {}) },
-      accounts: { url: accountsUrl, fields: parseFields(accountFields), ...(accountsDataPath ? { dataPath: accountsDataPath } : {}) },
-      balances: { url: balancesUrl, fields: parseFields(balanceFields), ...(balancesDataPath ? { dataPath: balancesDataPath } : {}) },
+      entities: { url: entitiesUrl, fields: connectionsToFields(entityConnections), ...(entitiesDataPath ? { dataPath: entitiesDataPath } : {}) },
+      accounts: { url: accountsUrl, fields: connectionsToFields(accountConnections), ...(accountsDataPath ? { dataPath: accountsDataPath } : {}) },
+      balances: { url: balancesUrl, fields: connectionsToFields(balanceConnections), ...(balancesDataPath ? { dataPath: balancesDataPath } : {}) },
     };
   }
 
@@ -212,12 +218,12 @@
   const labelStyle = 'display: block; font-size: 9px; color: var(--text-muted); letter-spacing: 0.1em; text-transform: uppercase; margin-bottom: 4px;';
 </script>
 
-<div style="max-width: 640px; margin: 0 auto;">
+<div style="max-width: 720px; margin: 0 auto;">
   <a href="/settings" style="font-size: 10px; color: var(--text-muted); display: inline-flex; align-items: center; gap: 4px; margin-bottom: 16px;">← Settings</a>
 
   <h1 style="font-family: 'Libre Baskerville', serif; font-size: 18px; color: var(--gold); margin-bottom: 4px;">🔌 API Connector</h1>
   <p style="font-size: 11px; color: var(--text-muted); margin-bottom: 20px;">
-    Enter your API URLs and click <strong>Auto-detect</strong> — we'll figure out the field mappings.
+    Enter your API URL, click <strong>Auto-detect</strong>, then connect fields visually.
   </p>
 
   {#if error}
@@ -251,87 +257,70 @@
     {/if}
   </div>
 
-  <!-- Endpoints with auto-detect -->
+  <!-- Endpoint: Entities -->
   <div class="glass-card" style="padding: 16px; margin-bottom: 12px;">
-    <div style="font-size: 11px; font-weight: 600; color: var(--text); margin-bottom: 12px;">Endpoints</div>
-
-    <!-- Entities -->
-    <div style="margin-bottom: 16px; padding-bottom: 16px; border-bottom: 1px solid var(--border);">
-      <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 6px;">
-        <span style="font-size: 14px;">🏢</span>
-        <label style="...margin-bottom: 0; flex: 1;">Entities URL</label>
-        <button onclick={() => autoDetect('entities')} disabled={!entitiesUrl || detecting === 'entities'} style="font-size: 9px; padding: 4px 10px; border: 1px solid var(--gold); border-radius: 4px; background: rgba(201,168,76,0.1); color: var(--gold); cursor: pointer; white-space: nowrap;">
-          {detecting === 'entities' ? 'Detecting...' : '🔍 Auto-detect'}
-        </button>
-      </div>
-      <input bind:value={entitiesUrl} placeholder="https://api.company.com/entities" style={inputStyle} />
-      {#if detectResults.entities?.keys}
-        <div style="font-size: 9px; color: var(--green); margin-top: 4px;">✓ {detectResults.entities.itemCount} records, {detectResults.entities.keys.length} fields detected</div>
-        <details style="margin-top: 4px;">
-          <summary style="font-size: 9px; color: var(--text-dim); cursor: pointer;">Preview first record</summary>
-          <pre style="font-size: 9px; color: var(--text-muted); background: var(--bg-surface); padding: 8px; border-radius: 4px; overflow-x: auto; margin-top: 4px; white-space: pre-wrap;">{JSON.stringify(detectResults.entities.sample, null, 2)}</pre>
-        </details>
-      {/if}
-      <details style="margin-top: 6px;">
-        <summary style="font-size: 9px; color: var(--text-dim); cursor: pointer;">Field mapping (auto-detected — edit if needed)</summary>
-        <input bind:value={entityFields} placeholder="id, name, type, currency" style="font-size: 10px; padding: 6px 8px; background: var(--bg-surface); border: 1px solid var(--border); border-radius: 4px; color: var(--text); width: 100%; margin-top: 4px;" />
-        <input bind:value={entitiesDataPath} placeholder="JSON path (e.g. data.items)" style="font-size: 10px; padding: 6px 8px; background: var(--bg-surface); border: 1px solid var(--border); border-radius: 4px; color: var(--text); width: 100%; margin-top: 4px;" />
-      </details>
+    <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 10px;">
+      <span style="font-size: 14px;">🏢</span>
+      <div style="font-size: 11px; font-weight: 600; color: var(--text); flex: 1;">Entities</div>
+      <button onclick={() => autoDetect('entities')} disabled={!entitiesUrl || detecting === 'entities'} style="font-size: 9px; padding: 4px 10px; border: 1px solid var(--gold); border-radius: 4px; background: rgba(201,168,76,0.1); color: var(--gold); cursor: pointer;">
+        {detecting === 'entities' ? '⏳' : '🔍 Auto-detect'}
+      </button>
     </div>
-
-    <!-- Accounts -->
-    <div style="margin-bottom: 16px; padding-bottom: 16px; border-bottom: 1px solid var(--border);">
-      <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 6px;">
-        <span style="font-size: 14px;">🏦</span>
-        <label style="...margin-bottom: 0; flex: 1;">Accounts URL</label>
-        <button onclick={() => autoDetect('accounts')} disabled={!accountsUrl || detecting === 'accounts'} style="font-size: 9px; padding: 4px 10px; border: 1px solid var(--gold); border-radius: 4px; background: rgba(201,168,76,0.1); color: var(--gold); cursor: pointer; white-space: nowrap;">
-          {detecting === 'accounts' ? 'Detecting...' : '🔍 Auto-detect'}
-        </button>
-      </div>
-      <input bind:value={accountsUrl} placeholder="https://api.company.com/accounts" style={inputStyle} />
-      {#if detectResults.accounts?.keys}
-        <div style="font-size: 9px; color: var(--green); margin-top: 4px;">✓ {detectResults.accounts.itemCount} records, {detectResults.accounts.keys.length} fields detected</div>
-        <details style="margin-top: 4px;">
-          <summary style="font-size: 9px; color: var(--text-dim); cursor: pointer;">Preview first record</summary>
-          <pre style="font-size: 9px; color: var(--text-muted); background: var(--bg-surface); padding: 8px; border-radius: 4px; overflow-x: auto; margin-top: 4px; white-space: pre-wrap;">{JSON.stringify(detectResults.accounts.sample, null, 2)}</pre>
-        </details>
-      {/if}
-      <details style="margin-top: 6px;">
-        <summary style="font-size: 9px; color: var(--text-dim); cursor: pointer;">Field mapping</summary>
-        <input bind:value={accountFields} placeholder="id, entityId, name, type, currency" style="font-size: 10px; padding: 6px 8px; background: var(--bg-surface); border: 1px solid var(--border); border-radius: 4px; color: var(--text); width: 100%; margin-top: 4px;" />
-        <input bind:value={accountsDataPath} placeholder="JSON path" style="font-size: 10px; padding: 6px 8px; background: var(--bg-surface); border: 1px solid var(--border); border-radius: 4px; color: var(--text); width: 100%; margin-top: 4px;" />
-      </details>
+    <input bind:value={entitiesUrl} placeholder="https://api.company.com/entities" style={inputStyle} />
+    <div style="display: grid; grid-template-columns: 1fr 2fr; gap: 8px; margin-top: 6px;">
+      <input bind:value={entitiesDataPath} placeholder="Data path (e.g. results)" style="font-size: 10px; padding: 5px 8px; background: var(--bg-surface); border: 1px solid var(--border); border-radius: 4px; color: var(--text);" />
     </div>
-
-    <!-- Balances -->
-    <div>
-      <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 6px;">
-        <span style="font-size: 14px;">💰</span>
-        <label style="...margin-bottom: 0; flex: 1;">Balances URL</label>
-        <button onclick={() => autoDetect('balances')} disabled={!(balancesUrl || accountsUrl) || detecting === 'balances'} style="font-size: 9px; padding: 4px 10px; border: 1px solid var(--gold); border-radius: 4px; background: rgba(201,168,76,0.1); color: var(--gold); cursor: pointer; white-space: nowrap;">
-          {detecting === 'balances' ? 'Detecting...' : '🔍 Auto-detect'}
-        </button>
+    {#if entityApiFields.length > 0}
+      <div style="margin-top: 12px;">
+        <FieldMapper apiFields={entityApiFields} internalFields={entityInternalFields} bind:connections={entityConnections} />
       </div>
-      <input bind:value={balancesUrl} placeholder="Leave empty to use Accounts URL" style={inputStyle} />
-      {#if !balancesUrl && accountsUrl}
-        <div style="font-size: 9px; color: var(--text-dim); margin-top: 4px;">↳ Sharing Accounts endpoint — map balance fields below</div>
-      {/if}
-      {#if detectResults.balances?.keys}
-        <div style="font-size: 9px; color: var(--green); margin-top: 4px;">✓ {detectResults.balances.itemCount} records, {detectResults.balances.keys.length} fields detected</div>
-        <details style="margin-top: 4px;">
-          <summary style="font-size: 9px; color: var(--text-dim); cursor: pointer;">Preview first record</summary>
-          <pre style="font-size: 9px; color: var(--text-muted); background: var(--bg-surface); padding: 8px; border-radius: 4px; overflow-x: auto; margin-top: 4px; white-space: pre-wrap;">{JSON.stringify(detectResults.balances.sample, null, 2)}</pre>
-        </details>
-      {/if}
-      <details style="margin-top: 6px;">
-        <summary style="font-size: 9px; color: var(--text-dim); cursor: pointer;">Field mapping</summary>
-        <input bind:value={balanceFields} placeholder="accountId, date, balance, currency" style="font-size: 10px; padding: 6px 8px; background: var(--bg-surface); border: 1px solid var(--border); border-radius: 4px; color: var(--text); width: 100%; margin-top: 4px;" />
-        <input bind:value={balancesDataPath} placeholder="JSON path" style="font-size: 10px; padding: 6px 8px; background: var(--bg-surface); border: 1px solid var(--border); border-radius: 4px; color: var(--text); width: 100%; margin-top: 4px;" />
-      </details>
-    </div>
+    {/if}
   </div>
 
-  <!-- General settings -->
+  <!-- Endpoint: Accounts -->
+  <div class="glass-card" style="padding: 16px; margin-bottom: 12px;">
+    <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 10px;">
+      <span style="font-size: 14px;">🏦</span>
+      <div style="font-size: 11px; font-weight: 600; color: var(--text); flex: 1;">Accounts</div>
+      <button onclick={() => autoDetect('accounts')} disabled={!accountsUrl || detecting === 'accounts'} style="font-size: 9px; padding: 4px 10px; border: 1px solid var(--gold); border-radius: 4px; background: rgba(201,168,76,0.1); color: var(--gold); cursor: pointer;">
+        {detecting === 'accounts' ? '⏳' : '🔍 Auto-detect'}
+      </button>
+    </div>
+    <input bind:value={accountsUrl} placeholder="https://api.company.com/accounts" style={inputStyle} />
+    <div style="margin-top: 6px;">
+      <input bind:value={accountsDataPath} placeholder="Data path (e.g. results)" style="font-size: 10px; padding: 5px 8px; background: var(--bg-surface); border: 1px solid var(--border); border-radius: 4px; color: var(--text); width: 100%;" />
+    </div>
+    {#if accountApiFields.length > 0}
+      <div style="margin-top: 12px;">
+        <FieldMapper apiFields={accountApiFields} internalFields={accountInternalFields} bind:connections={accountConnections} />
+      </div>
+    {/if}
+  </div>
+
+  <!-- Endpoint: Balances -->
+  <div class="glass-card" style="padding: 16px; margin-bottom: 12px;">
+    <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 10px;">
+      <span style="font-size: 14px;">💰</span>
+      <div style="font-size: 11px; font-weight: 600; color: var(--text); flex: 1;">Balances</div>
+      <button onclick={() => autoDetect('balances')} disabled={!(balancesUrl || accountsUrl) || detecting === 'balances'} style="font-size: 9px; padding: 4px 10px; border: 1px solid var(--gold); border-radius: 4px; background: rgba(201,168,76,0.1); color: var(--gold); cursor: pointer;">
+        {detecting === 'balances' ? '⏳' : '🔍 Auto-detect'}
+      </button>
+    </div>
+    <input bind:value={balancesUrl} placeholder="Leave empty to use Accounts URL" style={inputStyle} />
+    {#if !balancesUrl && accountsUrl}
+      <div style="font-size: 9px; color: var(--text-dim); margin-top: 4px;">↳ Sharing Accounts endpoint</div>
+    {/if}
+    <div style="margin-top: 6px;">
+      <input bind:value={balancesDataPath} placeholder="Data path" style="font-size: 10px; padding: 5px 8px; background: var(--bg-surface); border: 1px solid var(--border); border-radius: 4px; color: var(--text); width: 100%;" />
+    </div>
+    {#if balanceApiFields.length > 0}
+      <div style="margin-top: 12px;">
+        <FieldMapper apiFields={balanceApiFields} internalFields={balanceInternalFields} bind:connections={balanceConnections} />
+      </div>
+    {/if}
+  </div>
+
+  <!-- Settings -->
   <div class="glass-card" style="padding: 16px; margin-bottom: 12px;">
     <div style="font-size: 11px; font-weight: 600; color: var(--text); margin-bottom: 12px;">Settings</div>
     <div style="margin-bottom: 10px;">
@@ -349,7 +338,7 @@
     <button onclick={testConnection} disabled={testing || !entitiesUrl} style="font-size: 10px; padding: 8px 16px; border: 1px solid var(--gold); border-radius: 6px; background: rgba(201,168,76,0.1); color: var(--gold); cursor: pointer;">
       {testing ? 'Testing...' : '⚡ Test'}
     </button>
-    <button onclick={save} disabled={saving} class="btn-primary" style="font-size: 10px; padding: 8px 16px;">
+    <button onclick={save} disabled={saving} style="font-size: 10px; padding: 8px 16px; border: none; border-radius: 6px; background: var(--gold); color: #000; cursor: pointer; font-weight: 600;">
       {saving ? 'Saving...' : '💾 Save'}
     </button>
     {#if saved}<span style="font-size: 10px; color: var(--green);">✓ Saved</span>{/if}
