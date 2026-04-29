@@ -138,7 +138,7 @@ function normalizeType(val: string): string {
 function mapFields(rows: any[], fields: Record<string, string>): any[] {
   if (!rows || !Array.isArray(rows)) return [];
   
-  return rows.map((row, index) => {
+  const mappedRows = rows.map((row, index) => {
     const mapped: Record<string, string> = {};
     // fields: { ourField: theirField }
     for (const [ourField, theirField] of Object.entries(fields)) {
