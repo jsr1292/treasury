@@ -95,7 +95,8 @@ export const POST: RequestHandler = async ({ request }) => {
 // ─── Auto-detection logic ──────────────────────────────────────────
 
 const ID_PATTERNS = /^(id|_id|code|codigo|código|clave|key|nº identificación|nif|cif|ruc|cuit)$/i;
-const NAME_PATTERNS = /^(name|nombre|descripcion|descripción|title|nombre_completo|razon_social|razón_social|empresa|company|filial.*sucursal)$/i;
+const NAME_PATTERNS = /^(name|nombre|descripcion|descripción|title|nombre_completo|razon_social|razón_social|company|filial.*sucursal)$/i;
+const PARENT_NAME_PATTERNS = /^(empresa|parent_name|company_name|grupo)$/i;
 const TYPE_PATTERNS = /^(type|tipo|category|categoria|categoría|clasificacion|clasificación|tipo de entidad)$/i;
 const CURRENCY_PATTERNS = /^(currency|divisa|moneda|curr|currency_code|iso_currency)$/i;
 const PARENT_PATTERNS = /^(parent_id|parentid|parent|entity_id|entityid|company_id|empresa_id|grupo)$/i;
@@ -126,6 +127,7 @@ function autoDetectFields(keys: string[], sample: any) {
     type: findMatch(keys, TYPE_PATTERNS),
     currency: findMatch(keys, CURRENCY_PATTERNS),
     parentId: findMatch(keys, PARENT_PATTERNS),
+    parentName: findMatch(keys, PARENT_NAME_PATTERNS),
     country: findMatch(keys, COUNTRY_PATTERNS),
     date: findMatch(keys, DATE_PATTERNS),
     balance: findMatch(keys, BALANCE_PATTERNS),

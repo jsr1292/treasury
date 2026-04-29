@@ -162,7 +162,7 @@ function mapFields(rows: any[], fields: Record<string, string>): any[] {
     return mapped;
   });
 
-  // Auto-link branches to headquarters by matching Empresa field
+  // Auto-link branches to headquarters
   const hq = mappedRows.find(e => e.type === 'headquarters');
   if (hq) {
     for (const row of mappedRows) {
@@ -170,6 +170,25 @@ function mapFields(rows: any[], fields: Record<string, string>): any[] {
         row.parentId = hq.id;
       }
     }
+  }
+  // Also link by parentName if available (e.g. Empresa field)
+  if (!hq) {
+    // Try to find HQ by name matching parentName values
+    const parentNames = new Set(mappedRows.filter(r => r.parentName).map(r => r.parentName));
+    for (const pName of parentNames) {
+      const parent = mappedRows.find(e => e.name?.includes(pName) || e.id === pName);
+      if (parent) {
+        for (const row of mappedRows) {
+          if (row.parentName === pName && row.id !== parent.id) {
+            row.parentId = parent.id;
+          }
+        }
+      }
+    }
+  }
+  // Clean up internal fields
+  for (const row of mappedRows) {
+    delete row.parentName;
   }
 
   return mappedRows;
