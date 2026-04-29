@@ -279,8 +279,8 @@
     </div>
 
     <div style="margin-bottom: 12px;">
-      <label style={labelStyle}>📈 Balance History URL <span style="color: var(--text-dim); text-transform: none;">(optional, use {accountId})</span></label>
-      <input bind:value={balanceHistoryUrl} placeholder="https://api.company.com/balances/{accountId}/history" style={inputStyle} />
+      <label style={labelStyle}>📈 Balance History URL <span style="color: var(--text-dim); text-transform: none;">(optional, use {'{accountId}'})</span></label>
+      <input bind:value={balanceHistoryUrl} placeholder={"https://api.company.com/balances/{accountId}/history"} style={inputStyle} />
     </div>
 
     <div>

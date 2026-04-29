@@ -20,6 +20,7 @@
   <p class="text-sm text-[var(--text-secondary)] mb-6">Database connector configuration · <a href="/settings/mapper" class="text-[var(--accent)] hover:underline font-semibold">🗺️ Interactive Mapper</a> · <a href="/settings/api-connector" class="text-[var(--accent)] hover:underline font-semibold">🔌 API Connector</a></p>
 
   <!-- Connection status -->
+  {#if data.databaseUrl}
   <div class="bg-[var(--bg-card)] border border-[var(--border)] rounded-2xl p-4 mb-6">
     <div class="text-xs font-semibold text-[var(--text-secondary)] uppercase tracking-wider mb-2">Database Connection</div>
     <div class="flex items-center gap-2 mb-2">
@@ -28,7 +29,17 @@
     </div>
     <div class="mono text-xs text-[var(--text-secondary)] break-all">{data.databaseUrl}</div>
   </div>
+  {:else}
+  <div class="bg-[var(--bg-card)] border border-[var(--border)] rounded-2xl p-4 mb-6">
+    <div class="text-xs font-semibold text-[var(--text-secondary)] uppercase tracking-wider mb-2">Data Source</div>
+    <div class="flex items-center gap-2 mb-2">
+      <div class="w-2.5 h-2.5 rounded-full bg-[var(--gold)]"></div>
+      <span class="text-sm font-medium">No database — use <a href="/settings/api-connector" class="text-[var(--accent)] underline">API Connector</a></span>
+    </div>
+  </div>
+  {/if}
 
+  {#if data.connector}
   <!-- Active connector -->
   <div class="bg-[var(--bg-card)] border border-[var(--border)] rounded-2xl p-4 mb-6">
     <div class="text-xs font-semibold text-[var(--text-secondary)] uppercase tracking-wider mb-2">
@@ -88,6 +99,7 @@
       </div>
     </div>
   </div>
+  {/if}
 
   <!-- Raw config -->
   {#if data.rawJson}
