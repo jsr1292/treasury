@@ -116,6 +116,25 @@ function extractData(json: any, dataPath?: string): any {
 
 // ─── Field Mapping ────────────────────────────────────────────────
 
+const TYPE_MAP: Record<string, string> = {
+  'sucursal': 'branch', 'filial': 'subsidiary', 'sede': 'headquarters',
+  'casa matriz': 'headquarters', 'matriz': 'headquarters', 'oficina': 'branch',
+  'headquarters': 'headquarters', 'branch': 'branch', 'subsidiary': 'subsidiary',
+  'sucursal del perú': 'branch', 'sucursal del brasil': 'branch',
+};
+
+function normalizeType(val: string): string {
+  if (!val) return val;
+  const lower = val.toLowerCase().trim();
+  // Exact match
+  if (TYPE_MAP[lower]) return TYPE_MAP[lower];
+  // Partial match
+  for (const [key, mapped] of Object.entries(TYPE_MAP)) {
+    if (lower.includes(key) || key.includes(lower)) return mapped;
+  }
+  return val;
+}
+
 function mapFields(rows: any[], fields: Record<string, string>): any[] {
   if (!rows || !Array.isArray(rows)) return [];
   
@@ -126,6 +145,15 @@ function mapFields(rows: any[], fields: Record<string, string>): any[] {
       if (row[theirField] !== undefined) {
         mapped[ourField] = row[theirField];
       }
+    }
+    // Normalize type to English if mapped
+    if (mapped.type) {
+      mapped.type = normalizeType(mapped.type);
+    }
+    // Normalize currency: extract ISO code from "Name (XXX)"
+    if (mapped.currency) {
+      const match = String(mapped.currency).match(/\(([A-Z]{3})\)/);
+      if (match) mapped.currency = match[1];
     }
     // Ensure id exists for navigation
     if (!mapped.id) {
