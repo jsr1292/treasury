@@ -4,6 +4,7 @@ build/
 dist/
 .env
 .env.local
+connector.json
 *.log
 .DS_Store
 drizzle/
