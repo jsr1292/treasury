@@ -155,6 +155,29 @@ function mapFields(rows: any[], fields: Record<string, string>): any[] {
       const match = String(mapped.currency).match(/\(([A-Z]{3})\)/);
       if (match) mapped.currency = match[1];
     }
+    // Normalize balance: parse European format "4.000,69" → 4000.69
+    if (mapped.balance) {
+      const raw = String(mapped.balance).replace(/[^0-9.,-]/g, '');
+      if (raw.includes(',') && raw.includes('.')) {
+        // European: 1.000,50 → remove dots, comma to dot
+        mapped.balance = parseFloat(raw.replace(/\./g, '').replace(',', '.'));
+      } else if (raw.includes(',')) {
+        // Could be 4000,69 or just 4,000
+        const parts = raw.split(',');
+        if (parts[1]?.length === 2) {
+          mapped.balance = parseFloat(raw.replace(',', '.'));
+        } else {
+          mapped.balance = parseFloat(raw.replace(',', ''));
+        }
+      } else {
+        mapped.balance = parseFloat(raw);
+      }
+      if (isNaN(mapped.balance)) delete mapped.balance;
+    }
+    // Default isActive to true if not present
+    if (mapped.isActive === undefined) {
+      mapped.isActive = true;
+    }
     // Ensure id exists for navigation
     if (!mapped.id) {
       mapped.id = mapped.name || String(index + 1);
