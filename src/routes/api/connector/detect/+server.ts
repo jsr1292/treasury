@@ -106,7 +106,11 @@ const BALANCE_PATTERNS = /^(balance|saldo|amount|monto|total|valor|value|quantit
 const ACCOUNT_ID_PATTERNS = /^(account_id|accountid|acct_id|cuenta_id|id_cuenta|account)$/i;
 const ENTITY_ID_PATTERNS = /^(entity_id|entityid|empresa_id|company_id|cliente_id|holder_id|titular_id)$/i;
 const ACCOUNT_NUMBER_PATTERNS = /^(account_number|iban|cc|numero_cuenta|n_cuenta|num_cuenta|ccc)$/i;
-const BANK_PATTERNS = /^(bank|banco|bank_name|entidad|entity)$/i;
+const BANK_PATTERNS = /^(bank|banco|bank_name|entidad|entity|banco.*cuenta)$/i;
+const ACCOUNT_NAME_PATTERNS = /^(account|cuenta|account_name|nombre_cuenta|descripcion.*cuenta)$/i;
+const ACCOUNT_TYPE_PATTERNS = /^(account_type|tipo.*cuenta|tipo_de_cuenta|account_kind)$/i;
+const BALANCE_LOCAL_PATTERNS = /^(balance|saldo.*moneda|saldo.*cuenta|balance_local|saldo_cuenta)$/i;
+const BALANCE_EUR_PATTERNS = /^(balance_eur|saldo.*eur|saldo_eur|balance_euro)$/i;
 const ACTIVE_PATTERNS = /^(is_active|active|activo|status|estado|enabled)$/i;
 const RATE_PATTERNS = /^(rate|tipo|interes|interés|rate_pct|pct|porcentaje)$/i;
 const FROM_CURRENCY_PATTERNS = /^(from|from_currency|origen|source|base)$/i;
@@ -135,6 +139,12 @@ function autoDetectFields(keys: string[], sample: any) {
     entityId: findMatch(keys, ENTITY_ID_PATTERNS),
     accountNumber: findMatch(keys, ACCOUNT_NUMBER_PATTERNS),
     bankName: findMatch(keys, BANK_PATTERNS),
+    accountName: findMatch(keys, ACCOUNT_NAME_PATTERNS),
+    accountType: findMatch(keys, ACCOUNT_TYPE_PATTERNS),
+    balanceLocal: findMatch(keys, BALANCE_LOCAL_PATTERNS),
+    balanceEur: findMatch(keys, BALANCE_EUR_PATTERNS),
+    registeredBy: findMatch(keys, /^(registrado|registered|usuario|user|created_by)$/i),
+    registeredDate: findMatch(keys, /^(fecha.*registro|date.*registered|registration_date|created_at)$/i),
     isActive: findMatch(keys, ACTIVE_PATTERNS),
     rate: findMatch(keys, RATE_PATTERNS),
     fromCurrency: findMatch(keys, FROM_CURRENCY_PATTERNS),

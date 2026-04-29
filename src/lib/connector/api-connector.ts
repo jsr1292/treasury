@@ -235,8 +235,12 @@ export async function fetchApiBalances() {
   const config = getApiConfig();
   if (!config) throw new Error('No API connector configured');
   
-  const rows = await apiFetch(config.balances, {}, config);
-  return mapFields(Array.isArray(rows) ? rows : [rows], config.balances.fields);
+  // If balances has its own URL, use it. Otherwise reuse accounts endpoint.
+  const endpoint = config.balances?.url ? config.balances : config.accounts;
+  const fields = config.balances?.url ? config.balances.fields : (config.balances?.fields || {});
+  
+  const rows = await apiFetch(endpoint, {}, config);
+  return mapFields(Array.isArray(rows) ? rows : [rows], fields);
 }
 
 export async function fetchApiBalanceHistory(accountId: string) {

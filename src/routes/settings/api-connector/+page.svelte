@@ -81,7 +81,7 @@
   }
 
   async function autoDetect(endpoint: 'entities' | 'accounts' | 'balances') {
-    const urls = { entities: entitiesUrl, accounts: accountsUrl, balances: balancesUrl };
+    const urls = { entities: entitiesUrl, accounts: accountsUrl, balances: balancesUrl || accountsUrl };
     const url = urls[endpoint];
     if (!url) return;
 
@@ -114,21 +114,21 @@
           if (result.suggestedDataPath) entitiesDataPath = result.suggestedDataPath;
         } else if (endpoint === 'accounts') {
           const pairs = [];
-          if (d.id) pairs.push(`id:${d.id}`);
-          if (d.entityId) pairs.push(`entityId:${d.entityId}`);
-          if (d.name) pairs.push(`name:${d.name}`);
-          if (d.type) pairs.push(`type:${d.type}`);
+          if (d.id || d.accountName) pairs.push(`id:${d.id || d.accountName}`);
+          if (d.name || d.accountName) pairs.push(`name:${d.name || d.accountName}`);
+          if (d.entityId || d.parentName) pairs.push(`entityId:${d.entityId || d.parentName}`);
+          if (d.type || d.accountType) pairs.push(`type:${d.type || d.accountType}`);
           if (d.currency) pairs.push(`currency:${d.currency}`);
-          if (d.accountNumber) pairs.push(`accountNumber:${d.accountNumber}`);
           if (d.bankName) pairs.push(`bankName:${d.bankName}`);
           accountFields = pairs.join(', ');
           if (result.suggestedDataPath) accountsDataPath = result.suggestedDataPath;
         } else {
           const pairs = [];
-          if (d.accountId) pairs.push(`accountId:${d.accountId}`);
+          if (d.accountId || d.accountName) pairs.push(`accountId:${d.accountId || d.accountName}`);
           if (d.entityId) pairs.push(`entityId:${d.entityId}`);
-          if (d.date) pairs.push(`date:${d.date}`);
-          if (d.balance) pairs.push(`balance:${d.balance}`);
+          if (d.date || d.registeredDate) pairs.push(`date:${d.date || d.registeredDate}`);
+          if (d.balance || d.balanceEur) pairs.push(`balance:${d.balance || d.balanceEur}`);
+          if (d.balanceLocal) pairs.push(`balanceLocal:${d.balanceLocal}`);
           if (d.currency) pairs.push(`currency:${d.currency}`);
           balanceFields = pairs.join(', ');
           if (result.suggestedDataPath) balancesDataPath = result.suggestedDataPath;
@@ -301,11 +301,14 @@
       <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 6px;">
         <span style="font-size: 14px;">💰</span>
         <label style="...margin-bottom: 0; flex: 1;">Balances URL</label>
-        <button onclick={() => autoDetect('balances')} disabled={!balancesUrl || detecting === 'balances'} style="font-size: 9px; padding: 4px 10px; border: 1px solid var(--gold); border-radius: 4px; background: rgba(201,168,76,0.1); color: var(--gold); cursor: pointer; white-space: nowrap;">
+        <button onclick={() => autoDetect('balances')} disabled={!(balancesUrl || accountsUrl) || detecting === 'balances'} style="font-size: 9px; padding: 4px 10px; border: 1px solid var(--gold); border-radius: 4px; background: rgba(201,168,76,0.1); color: var(--gold); cursor: pointer; white-space: nowrap;">
           {detecting === 'balances' ? 'Detecting...' : '🔍 Auto-detect'}
         </button>
       </div>
-      <input bind:value={balancesUrl} placeholder="https://api.company.com/balances" style={inputStyle} />
+      <input bind:value={balancesUrl} placeholder="Leave empty to use Accounts URL" style={inputStyle} />
+      {#if !balancesUrl && accountsUrl}
+        <div style="font-size: 9px; color: var(--text-dim); margin-top: 4px;">↳ Sharing Accounts endpoint — map balance fields below</div>
+      {/if}
       {#if detectResults.balances?.keys}
         <div style="font-size: 9px; color: var(--green); margin-top: 4px;">✓ {detectResults.balances.itemCount} records, {detectResults.balances.keys.length} fields detected</div>
         <details style="margin-top: 4px;">
