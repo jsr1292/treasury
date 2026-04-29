@@ -1,6 +1,12 @@
 <script>
   let { data } = $props();
   import { ACCOUNT_TYPES } from '$lib/constants';
+
+  // Normalize: API returns flat {name, type, ...}, DB returns {account, entity}
+  const accounts = (data.accounts || []).map((a: any) => {
+    if (a.account) return a; // DB format
+    return { account: a, entity: { name: a.entityName || a.entityId || '—' } }; // API format
+  });
 </script>
 
 <svelte:head>
@@ -27,8 +33,8 @@
           </tr>
         </thead>
         <tbody>
-          {#each data.accounts as { account, entity }}
-            {@const cfg = ACCOUNT_TYPES[account.type] || ACCOUNT_TYPES.other}
+          {#each accounts as { account, entity }}
+            {@const cfg = ACCOUNT_TYPES[account.type] || ACCOUNT_TYPES.other || { label: account.type || 'Account', icon: '💳', badge: 'badge-gold' }}
             <tr>
               <td><a href="/accounts/{account.id}" class="no-underline" style="color: var(--text); font-weight: 500;">{account.name}</a></td>
               <td style="color: var(--text3);">{entity.name}</td>
@@ -43,8 +49,8 @@
     </div>
 
     <div class="md:hidden space-y-2">
-      {#each data.accounts as { account, entity }}
-        {@const cfg = ACCOUNT_TYPES[account.type] || ACCOUNT_TYPES.other}
+      {#each accounts as { account, entity }}
+        {@const cfg = ACCOUNT_TYPES[account.type] || ACCOUNT_TYPES.other || { label: account.type || 'Account', icon: '💳', badge: 'badge-gold' }}
         <a href="/accounts/{account.id}" class="account-row block no-underline">
           <div class="text-base">{cfg.icon}</div>
           <div class="flex-1 min-w-0">
