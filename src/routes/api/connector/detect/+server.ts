@@ -39,7 +39,21 @@ export const POST: RequestHandler = async ({ request }) => {
     // Normalize to array
     const items = Array.isArray(data) ? data : data ? [data] : [];
     if (items.length === 0) {
-      return new Response(JSON.stringify({ error: 'No data found at this endpoint', rawKeys: [], sample: null }), {
+      // Maybe we're looking at the wrapper object — try common keys
+      const wrapperKeys = ['results', 'data', 'items', 'records', 'rows', 'content', 'response', 'payload'];
+      for (const wk of wrapperKeys) {
+        if (Array.isArray(json[wk]) && json[wk].length > 0) {
+          return new Response(JSON.stringify({
+            keys: [],
+            sample: null,
+            detected: {},
+            suggestedDataPath: wk,
+            itemCount: json[wk].length,
+            hint: `Found array at '${wk}' with ${json[wk].length} items. Set data path to '${wk}' and auto-detect again.`,
+          }), { headers: { 'Content-Type': 'application/json' } });
+        }
+      }
+      return new Response(JSON.stringify({ error: 'No data found — try setting a data path (e.g. results, data.items)', rawKeys: Object.keys(json), sample: null }), {
         headers: { 'Content-Type': 'application/json' },
       });
     }
@@ -80,12 +94,12 @@ export const POST: RequestHandler = async ({ request }) => {
 
 // ─── Auto-detection logic ──────────────────────────────────────────
 
-const ID_PATTERNS = /^(id|_id|code|codigo|código|clave|key)$/i;
-const NAME_PATTERNS = /^(name|nombre|descripcion|descripción|title|nombre_completo|razon_social|razón_social|empresa|company)$/i;
-const TYPE_PATTERNS = /^(type|tipo|category|categoria|categoría|clasificacion|clasificación)$/i;
+const ID_PATTERNS = /^(id|_id|code|codigo|código|clave|key|nº identificación|nif|cif|ruc|cuit)$/i;
+const NAME_PATTERNS = /^(name|nombre|descripcion|descripción|title|nombre_completo|razon_social|razón_social|empresa|company|filial.*sucursal)$/i;
+const TYPE_PATTERNS = /^(type|tipo|category|categoria|categoría|clasificacion|clasificación|tipo de entidad)$/i;
 const CURRENCY_PATTERNS = /^(currency|divisa|moneda|curr|currency_code|iso_currency)$/i;
-const PARENT_PATTERNS = /^(parent_id|parentid|parent|entity_id|entityid|company_id|empresa_id)$/i;
-const COUNTRY_PATTERNS = /^(country|pais|país|nation|nacionalidad)$/i;
+const PARENT_PATTERNS = /^(parent_id|parentid|parent|entity_id|entityid|company_id|empresa_id|grupo)$/i;
+const COUNTRY_PATTERNS = /^(country|pais|país|nation|nacionalidad|área geográfica|area geografica)$/i;
 const DATE_PATTERNS = /^(date|fecha|created_at|updated_at|timestamp|fecha_creacion|date_created|dt)$/i;
 const BALANCE_PATTERNS = /^(balance|saldo|amount|monto|total|valor|value|quantity|cantidad|importe)$/i;
 const ACCOUNT_ID_PATTERNS = /^(account_id|accountid|acct_id|cuenta_id|id_cuenta|account)$/i;
@@ -98,7 +112,11 @@ const FROM_CURRENCY_PATTERNS = /^(from|from_currency|origen|source|base)$/i;
 const TO_CURRENCY_PATTERNS = /^(to|to_currency|destino|target|quote)$/i;
 
 function findMatch(keys: string[], patterns: RegExp): string | null {
-  return keys.find(k => patterns.test(k)) || null;
+  // Exact match
+  const exact = keys.find(k => patterns.test(k));
+  if (exact) return exact;
+  // Partial match: check if any key contains the pattern word
+  return null;
 }
 
 function autoDetectFields(keys: string[], sample: any) {
