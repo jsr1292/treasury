@@ -4,6 +4,11 @@
 
   let { data } = $props();
 
+  // ─── Multi-company state ─────────────────────────────────────────
+  let companies = $state<{ name: string; connector: any }[]>([]);
+  let activeCompanyIndex = $state(0);
+  let isMultiCompany = $state(false);
+
   // Auth
   let authType = $state<'none' | 'bearer' | 'basic' | 'api-key'>('none');
   let authToken = $state('');
@@ -22,7 +27,7 @@
   let accountsDataPath = $state('');
   let balancesDataPath = $state('');
 
-  // Visual mapper connections: { apiField: internalKey }
+  // Visual mapper connections
   let entityConnections = $state<Record<string, string>>({});
   let accountConnections = $state<Record<string, string>>({});
   let balanceConnections = $state<Record<string, string>>({});
@@ -38,9 +43,9 @@
   let balanceSamples = $state<Record<string, string>>({});
 
   // Extra
-  let connectorName = $state('');
   let cacheTtl = $state(1800);
   let timeout = $state(15000);
+  let refreshInterval = $state(0);
 
   // State
   let saving = $state(false);
@@ -80,29 +85,98 @@
 
   // Load existing config
   onMount(() => {
-    if (data.connector && data.connector.type === 'api') {
-      const c = data.connector;
-      connectorName = c.name || '';
-      authType = c.auth?.type || 'none';
-      authToken = c.auth?.token || '';
-      authUsername = c.auth?.username || '';
-      authPassword = c.auth?.password || '';
-      authHeaderName = c.auth?.headerName || 'X-API-Key';
-      authApiKey = c.auth?.apiKey || '';
-      cacheTtl = c.cacheTtl || 1800;
-      timeout = c.timeout || 15000;
-      entitiesUrl = c.entities?.url || '';
-      accountsUrl = c.accounts?.url || '';
-      balancesUrl = c.balances?.url || '';
-      entitiesDataPath = c.entities?.dataPath || '';
-      accountsDataPath = c.accounts?.dataPath || '';
-      balancesDataPath = c.balances?.dataPath || '';
-      // Reverse connections from { our: their } to { their: our } for the mapper
-      entityConnections = reverseMap(c.entities?.fields);
-      accountConnections = reverseMap(c.accounts?.fields);
-      balanceConnections = reverseMap(c.balances?.fields);
-    }
+    loadFromConnector();
   });
+
+  function loadFromConnector() {
+    if (!data.connector) return;
+
+    // Multi-company format
+    if (data.connector.companies && Array.isArray(data.connector.companies)) {
+      isMultiCompany = true;
+      companies = data.connector.companies.map((c: any) => ({
+        name: c.name || 'Company',
+        connector: c.connector || {},
+      }));
+      if (companies.length === 0) {
+        companies = [{ name: 'Company 1', connector: {} }];
+      }
+      loadCompanyConfig(0);
+      return;
+    }
+
+    // Legacy single-connector format — convert to multi-company
+    isMultiCompany = false;
+    const c = data.connector;
+    if (c.type === 'api') {
+      companies = [{ name: c.name || 'Company', connector: c }];
+      loadCompanyConfig(0);
+    }
+  }
+
+  function loadCompanyConfig(idx: number) {
+    activeCompanyIndex = idx;
+    const c = companies[idx]?.connector || {};
+    
+    authType = c.auth?.type || 'none';
+    authToken = c.auth?.token || '';
+    authUsername = c.auth?.username || '';
+    authPassword = c.auth?.password || '';
+    authHeaderName = c.auth?.headerName || 'X-API-Key';
+    authApiKey = c.auth?.apiKey || '';
+    cacheTtl = c.cacheTtl || 1800;
+    timeout = c.timeout || 15000;
+    refreshInterval = c.refreshInterval || 0;
+    entitiesUrl = c.entities?.url || '';
+    accountsUrl = c.accounts?.url || '';
+    balancesUrl = c.balances?.url || '';
+    entitiesDataPath = c.entities?.dataPath || '';
+    accountsDataPath = c.accounts?.dataPath || '';
+    balancesDataPath = c.balances?.dataPath || '';
+    
+    // Clear mapper state
+    entityConnections = reverseMap(c.entities?.fields);
+    accountConnections = reverseMap(c.accounts?.fields);
+    balanceConnections = reverseMap(c.balances?.fields);
+    entityApiFields = [];
+    accountApiFields = [];
+    balanceApiFields = [];
+    entitySamples = {};
+    accountSamples = {};
+    balanceSamples = {};
+  }
+
+  function switchCompany(idx: number) {
+    // Save current company state first
+    saveCompanyConfig(activeCompanyIndex);
+    loadCompanyConfig(idx);
+  }
+
+  function saveCompanyConfig(idx: number) {
+    companies[idx] = {
+      name: companies[idx]?.name || `Company ${idx + 1}`,
+      connector: buildConfig(),
+    };
+  }
+
+  function addCompany() {
+    saveCompanyConfig(activeCompanyIndex);
+    companies = [...companies, { name: `Company ${companies.length + 1}`, connector: {} }];
+    loadCompanyConfig(companies.length - 1);
+  }
+
+  function removeCompany(idx: number) {
+    if (companies.length <= 1) return;
+    companies = companies.filter((_, i) => i !== idx);
+    if (activeCompanyIndex >= companies.length) {
+      activeCompanyIndex = companies.length - 1;
+    }
+    loadCompanyConfig(activeCompanyIndex);
+  }
+
+  function updateCompanyName(idx: number, name: string) {
+    companies[idx].name = name;
+  }
 
   // fields stored as { ourField: theirField } but mapper uses { theirField: ourField }
   function reverseMap(fields: Record<string, string>): Record<string, string> {
@@ -114,7 +188,6 @@
     return reversed;
   }
 
-  // Convert mapper connections back to { ourField: theirField } for saving
   function connectionsToFields(conns: Record<string, string>): Record<string, string> {
     const fields: Record<string, string> = {};
     for (const [apiField, internalKey] of Object.entries(conns)) {
@@ -129,6 +202,20 @@
     if (authType === 'basic') { auth.username = authUsername; auth.password = authPassword; }
     if (authType === 'api-key') { auth.headerName = authHeaderName; auth.apiKey = authApiKey; }
     return auth;
+  }
+
+  function buildConfig() {
+    return {
+      type: 'api',
+      version: 1,
+      auth: getAuthPayload(),
+      cacheTtl,
+      timeout,
+      refreshInterval,
+      entities: { url: entitiesUrl, fields: connectionsToFields(entityConnections), ...(entitiesDataPath ? { dataPath: entitiesDataPath } : {}) },
+      accounts: { url: accountsUrl, fields: connectionsToFields(accountConnections), ...(accountsDataPath ? { dataPath: accountsDataPath } : {}) },
+      balances: { url: balancesUrl, fields: connectionsToFields(balanceConnections), ...(balancesDataPath ? { dataPath: balancesDataPath } : {}) },
+    };
   }
 
   async function autoDetect(endpoint: 'entities' | 'accounts' | 'balances') {
@@ -151,7 +238,6 @@
         error = result.error;
       } else {
         error = '';
-        // Store the detected API fields and sample values
         const apiKeys = result.keys || [];
         const samples: Record<string, string> = {};
         if (result.sample) {
@@ -167,7 +253,6 @@
         else if (endpoint === 'accounts') { accountApiFields = apiKeys; accountSamples = samples; if (result.suggestedDataPath) accountsDataPath = result.suggestedDataPath; }
         else { balanceApiFields = apiKeys; balanceSamples = samples; if (result.suggestedDataPath) balancesDataPath = result.suggestedDataPath; }
 
-        // Auto-apply detected mappings
         const d = result.detected;
         const conns: Record<string, string> = {};
         for (const [internalKey, apiField] of Object.entries(d)) {
@@ -183,27 +268,20 @@
     detecting = '';
   }
 
-  function buildConfig() {
-    return {
-      type: 'api',
-      name: connectorName || 'API Connector',
-      version: 1,
-      auth: getAuthPayload(),
-      cacheTtl,
-      timeout,
-      entities: { url: entitiesUrl, fields: connectionsToFields(entityConnections), ...(entitiesDataPath ? { dataPath: entitiesDataPath } : {}) },
-      accounts: { url: accountsUrl, fields: connectionsToFields(accountConnections), ...(accountsDataPath ? { dataPath: accountsDataPath } : {}) },
-      balances: { url: balancesUrl, fields: connectionsToFields(balanceConnections), ...(balancesDataPath ? { dataPath: balancesDataPath } : {}) },
-    };
-  }
-
   async function save() {
     saving = true; error = '';
     try {
+      // Save current company config first
+      saveCompanyConfig(activeCompanyIndex);
+      
+      const config = isMultiCompany
+        ? { companies: companies }
+        : buildConfig();
+
       const res = await fetch('/api/connector', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(buildConfig()),
+        body: JSON.stringify(config),
       });
       if (res.ok) { saved = true; setTimeout(() => saved = false, 2000); }
       else { const d = await res.json(); error = d.error || 'Save failed'; }
@@ -214,10 +292,16 @@
   async function testConnection() {
     testing = true; testResult = null;
     try {
+      // Save current company config first
+      saveCompanyConfig(activeCompanyIndex);
+      const config = isMultiCompany
+        ? { companies: companies }
+        : buildConfig();
+
       const res = await fetch('/api/connector/test', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(buildConfig()),
+        body: JSON.stringify(isMultiCompany ? companies[activeCompanyIndex].connector : config),
       });
       testResult = await res.json();
     } catch (e: any) {
@@ -235,11 +319,62 @@
 
   <h1 style="font-family: 'Libre Baskerville', serif; font-size: 18px; color: var(--gold); margin-bottom: 4px;">🔌 API Connector</h1>
   <p style="font-size: 11px; color: var(--text-muted); margin-bottom: 20px;">
-    Enter your API URL, click <strong>Auto-detect</strong>, then connect fields visually.
+    {#if isMultiCompany}
+      Manage multiple company API connections. Each company can have its own API endpoint.
+    {:else}
+      Enter your API URL, click <strong>Auto-detect</strong>, then connect fields visually.
+    {/if}
   </p>
 
   {#if error}
     <div style="padding: 10px 14px; background: rgba(255,77,106,0.1); border: 1px solid var(--red); border-radius: 6px; font-size: 11px; color: var(--red); margin-bottom: 16px;">{error}</div>
+  {/if}
+
+  <!-- Multi-company mode toggle & tabs -->
+  {#if companies.length > 0}
+    <div class="glass-card" style="padding: 12px 16px; margin-bottom: 12px;">
+      <div class="flex items-center justify-between">
+        <div class="flex items-center gap-3">
+          <label class="flex items-center gap-2 cursor-pointer">
+            <input type="checkbox" bind:checked={isMultiCompany} onchange={() => { if (isMultiCompany && companies.length === 1) { companies = [...companies, { name: 'Company 2', connector: {} }]; } }} style="accent-color: var(--gold); width: 14px; height: 14px;" />
+            <span style="font-size: 11px; color: var(--text);">Multi-company mode</span>
+          </label>
+        </div>
+        {#if isMultiCompany && companies.length > 1}
+          <button onclick={removeCompany} style="font-size: 10px; padding: 4px 10px; border: 1px solid rgba(255,77,106,0.3); border-radius: 4px; background: rgba(255,77,106,0.05); color: var(--red); cursor: pointer;">
+            Remove current
+          </button>
+        {/if}
+      </div>
+
+      {#if isMultiCompany}
+        <!-- Company tabs -->
+        <div class="flex items-center gap-2 mt-3 flex-wrap">
+          {#each companies as company, i}
+            <button
+              onclick={() => switchCompany(i)}
+              style="font-size: 11px; padding: 5px 12px; border-radius: 6px; cursor: pointer; border: 1px solid {activeCompanyIndex === i ? 'var(--gold)' : 'var(--glass-border)'}; background: {activeCompanyIndex === i ? 'rgba(201,168,76,0.12)' : 'transparent'}; color: {activeCompanyIndex === i ? 'var(--gold)' : 'var(--text3)'}; transition: all 0.15s;"
+            >
+              {company.name}
+            </button>
+          {/each}
+          <button onclick={addCompany} style="font-size: 11px; padding: 5px 12px; border-radius: 6px; cursor: pointer; border: 1px dashed var(--glass-border); background: transparent; color: var(--text3); transition: all 0.15s;">
+            + Add company
+          </button>
+        </div>
+
+        <!-- Company name editor -->
+        <div class="mt-3">
+          <input
+            type="text"
+            value={companies[activeCompanyIndex]?.name || ''}
+            oninput={(e) => updateCompanyName(activeCompanyIndex, e.currentTarget.value)}
+            placeholder="Company name"
+            style="{inputStyle} max-width: 240px;"
+          />
+        </div>
+      {/if}
+    </div>
   {/if}
 
   <!-- Auth -->
@@ -335,13 +470,14 @@
   <!-- Settings -->
   <div class="glass-card" style="padding: 16px; margin-bottom: 12px;">
     <div style="font-size: 11px; font-weight: 600; color: var(--text); margin-bottom: 12px;">Settings</div>
-    <div style="margin-bottom: 10px;">
-      <label style={labelStyle}>Connector name</label>
-      <input bind:value={connectorName} placeholder="My Company API" style={inputStyle} />
-    </div>
     <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
       <div><label style={labelStyle}>Cache TTL (seconds)</label><input type="number" bind:value={cacheTtl} style={inputStyle} /></div>
       <div><label style={labelStyle}>Timeout (ms)</label><input type="number" bind:value={timeout} style={inputStyle} /></div>
+    </div>
+    <div class="mt-3">
+      <label style={labelStyle}>Auto-refresh interval (minutes, 0 = off)</label>
+      <input type="number" bind:value={refreshInterval} min="0" style={inputStyle} />
+      <div style="font-size: 9px; color: var(--text-dim); margin-top: 3px;">Dashboard will auto-refresh every N minutes when enabled</div>
     </div>
   </div>
 

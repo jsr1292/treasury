@@ -1,9 +1,27 @@
-<script>
+<script lang="ts">
   import '../app.css';
   import { page } from '$app/stores';
   import Toast from '$lib/components/Toast.svelte';
   let { children, data } = $props();
   let currentPath = $derived($page.url.pathname);
+
+  // Company switcher
+  let selectedCompanyIndex = $state(data.selectedCompany?.index ?? 0);
+  let showCompanyDropdown = $state(false);
+
+  function selectCompany(index: number) {
+    selectedCompanyIndex = index;
+    showCompanyDropdown = false;
+    // Set cookie and reload to pick up new company data
+    document.cookie = `company=${index}; path=/; max-age=86400`;
+    window.location.reload();
+  }
+
+  function getCompanyLabel() {
+    if (!data.isMultiCompany) return data.selectedCompany?.name || 'Company';
+    if (selectedCompanyIndex === -1) return 'All Companies';
+    return data.companies?.[selectedCompanyIndex]?.name || 'Company';
+  }
 
   // Theme
   let theme = $state('dark');
@@ -122,6 +140,74 @@
             <div class="text-[9px]" style="color: var(--text3); letter-spacing: 0.08em;">CASH MANAGEMENT</div>
           </div>
         </div>
+
+        <!-- Company switcher (only show when multi-company or when there's a company name) -->
+        {#if data.companies && data.companies.length > 0}
+          <div class="relative mt-3">
+            <button
+              onclick={() => showCompanyDropdown = !showCompanyDropdown}
+              class="w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs transition-colors"
+              style="background: var(--bg-card); border: 1px solid var(--glass-border); color: var(--text); cursor: pointer;"
+            >
+              <div class="flex items-center gap-1.5">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="width: 12px; height: 12px; color: var(--gold);">
+                  <path d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+                <span class="font-medium truncate">{getCompanyLabel()}</span>
+              </div>
+              {#if data.isMultiCompany || data.companies.length > 1}
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width: 10px; height: 10px; color: var(--text3); flex-shrink: 0; transition: transform 0.15s; transform: rotate({showCompanyDropdown ? 180 : 0}deg);">
+                  <path d="M6 9l6 6 6-6" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+              {/if}
+            </button>
+
+            {#if showCompanyDropdown}
+              <div class="absolute top-full left-0 right-0 mt-1 py-1 rounded-lg z-50" style="background: var(--bg2); border: 1px solid var(--glass-border); box-shadow: 0 8px 32px rgba(0,0,0,0.4);">
+                {#if data.isMultiCompany}
+                  <button
+                    onclick={() => selectCompany(-1)}
+                    class="w-full flex items-center gap-2 px-3 py-2 text-xs transition-colors"
+                    style="color: {selectedCompanyIndex === -1 ? 'var(--gold)' : 'var(--text3)'}; background: {selectedCompanyIndex === -1 ? 'rgba(201,168,76,0.08)' : 'transparent'};"
+                    onmouseenter={(e) => { if (selectedCompanyIndex !== -1) e.currentTarget.style.background = 'rgba(255,255,255,0.04)'; }}
+                    onmouseleave={(e) => { if (selectedCompanyIndex !== -1) e.currentTarget.style.background = 'transparent'; }}
+                  >
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="width: 12px; height: 12px;">
+                      <path d="M4 6h16M4 12h16M4 18h7" stroke-linecap="round"/>
+                    </svg>
+                    All Companies
+                    {#if data.companies.length > 0}
+                      <span class="ml-auto text-[9px] px-1.5 py-0.5 rounded" style="background: rgba(201,168,76,0.12); color: var(--gold);">{data.companies.length}</span>
+                    {/if}
+                  </button>
+                  <div class="my-1" style="border-top: 1px solid var(--glass-border);"></div>
+                {/if}
+                {#each data.companies || [] as company, i}
+                  <button
+                    onclick={() => selectCompany(i)}
+                    class="w-full flex items-center gap-2 px-3 py-2 text-xs transition-colors"
+                    style="color: {selectedCompanyIndex === i ? 'var(--gold)' : 'var(--text3)'}; background: {selectedCompanyIndex === i ? 'rgba(201,168,76,0.08)' : 'transparent'};"
+                    onmouseenter={(e) => { if (selectedCompanyIndex !== i) e.currentTarget.style.background = 'rgba(255,255,255,0.04)'; }}
+                    onmouseleave={(e) => { if (selectedCompanyIndex !== i) e.currentTarget.style.background = 'transparent'; }}
+                  >
+                    <span style="width: 12px; height: 12px; display: flex; align-items: center; justify-content: center;">
+                      {#if selectedCompanyIndex === i}
+                        <span style="color: var(--gold);">●</span>
+                      {:else}
+                        <span style="color: var(--text3); opacity: 0.4;">○</span>
+                      {/if}
+                    </span>
+                    {company.name}
+                  </button>
+                {/each}
+              </div>
+            {/if}
+          </div>
+          <!-- Close dropdown when clicking outside -->
+          {#if showCompanyDropdown}
+            <div class="fixed inset-0 z-40" onclick={() => showCompanyDropdown = false}></div>
+          {/if}
+        {/if}
       </div>
 
       <!-- Nav sections -->

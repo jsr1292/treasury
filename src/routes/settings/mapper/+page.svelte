@@ -1,5 +1,1 @@
-<script>
-  import { goto } from '$app/navigation';
-  import { onMount } from 'svelte';
-  onMount(() => goto('/settings/api-connector'));
-</script>
+<svelte:head><title>Redirecting…</title></svelte:head>

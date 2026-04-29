@@ -1,10 +1,28 @@
-import { getAccounts, getBalances, getEntities, getConnectorMode } from '$lib/server/data';
+import { getAccounts, getBalances, getEntities, getConnectorMode, getCompanyList } from '$lib/server/data';
 import type { PageServerLoad } from './$types';
 
-export const load: PageServerLoad = async ({ params }) => {
-  const mode = await getConnectorMode();
+export const load: PageServerLoad = async ({ params, cookies }) => {
+  const companyIndex = parseInt(cookies.get('company') || '0', 10);
+  const isConsolidated = companyIndex === -1;
+  const companies = getCompanyList();
+  const mode = await getConnectorMode(companyIndex);
+
   try {
-    const [allAccounts, allBalances] = await Promise.all([getAccounts(), getBalances()]);
+    let allAccounts: any[];
+    let allBalances: any[];
+
+    if (isConsolidated) {
+      const indices = companies.map((_: any, i: number) => i);
+      [allAccounts, allBalances] = await Promise.all([
+        Promise.all(indices.map((i: number) => getAccounts(i))).then(r => r.flat()),
+        Promise.all(indices.map((i: number) => getBalances(i))).then(r => r.flat()),
+      ]);
+    } else {
+      [allAccounts, allBalances] = await Promise.all([
+        getAccounts(companyIndex),
+        getBalances(companyIndex),
+      ]);
+    }
 
     // Find account by id or name (API mode uses name as id)
     let account: any = null;
@@ -13,11 +31,16 @@ export const load: PageServerLoad = async ({ params }) => {
     for (const a of allAccounts) {
       if (String(a.id || a.accountId || a.name || '') === String(params.id)) {
         account = a;
-        // Match entity by entityName
         const eName = a.entityName;
         if (eName) {
-          const entities = await getEntities();
-          const matched = entities.find((e: any) =>
+          let allEntities: any[];
+          if (isConsolidated) {
+            const indices = companies.map((_: any, i: number) => i);
+            allEntities = await Promise.all(indices.map((i: number) => getEntities(i))).then(r => r.flat());
+          } else {
+            allEntities = await getEntities(companyIndex);
+          }
+          const matched = allEntities.find((e: any) =>
             e.name === eName || e.id === eName ||
             (e.name && eName && (e.name.includes(eName) || eName.includes(e.name)))
           );

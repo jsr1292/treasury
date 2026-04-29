@@ -1,13 +1,30 @@
-import { getAccounts, getBalances, getConnectorMode } from '$lib/server/data';
+import { getAccounts, getBalances, getConnectorMode, getCompanyList } from '$lib/server/data';
 import type { PageServerLoad } from './$types';
 
-export const load: PageServerLoad = async () => {
-  const mode = await getConnectorMode();
+export const load: PageServerLoad = async ({ cookies }) => {
+  const companyIndex = parseInt(cookies.get('company') || '0', 10);
+  const isConsolidated = companyIndex === -1;
+  const companies = getCompanyList();
+  const mode = await getConnectorMode(companyIndex);
 
   if (mode !== 'database') {
     // API mode: return deposit/bond accounts from API data
     try {
-      const [accounts, balances] = await Promise.all([getAccounts(), getBalances()]);
+      let accounts: any[];
+      let balances: any[];
+
+      if (isConsolidated) {
+        const indices = companies.map((_: any, i: number) => i);
+        [accounts, balances] = await Promise.all([
+          Promise.all(indices.map((i: number) => getAccounts(i))).then(r => r.flat()),
+          Promise.all(indices.map((i: number) => getBalances(i))).then(r => r.flat()),
+        ]);
+      } else {
+        [accounts, balances] = await Promise.all([
+          getAccounts(companyIndex),
+          getBalances(companyIndex),
+        ]);
+      }
 
       const balanceMap = new Map<string, any>();
       for (const b of balances) {
@@ -52,9 +69,9 @@ export const load: PageServerLoad = async () => {
         .reduce((sum, i) => sum + (i.latestBalance ? parseFloat(i.latestBalance.balance) : 0), 0);
       const totalYield = instruments.reduce((sum, i) => sum + i.annualYield, 0);
 
-      return { instruments, totalDeposits, totalBonds, totalYield, connectorMode: mode };
+      return { instruments, totalDeposits, totalBonds, totalYield, connectorMode: mode, isConsolidated };
     } catch {
-      return { instruments: [], totalDeposits: 0, totalBonds: 0, totalYield: 0, connectorMode: mode };
+      return { instruments: [], totalDeposits: 0, totalBonds: 0, totalYield: 0, connectorMode: mode, isConsolidated };
     }
   }
 
@@ -97,8 +114,8 @@ export const load: PageServerLoad = async () => {
       .reduce((sum, i) => sum + (i.latestBalance ? parseFloat(i.latestBalance.balance) : 0), 0);
     const totalYield = enriched.reduce((sum, i) => sum + i.annualYield, 0);
 
-    return { instruments: enriched, totalDeposits, totalBonds, totalYield, connectorMode: mode };
+    return { instruments: enriched, totalDeposits, totalBonds, totalYield, connectorMode: mode, isConsolidated };
   } catch {
-    return { instruments: [], totalDeposits: 0, totalBonds: 0, totalYield: 0, connectorMode: mode };
+    return { instruments: [], totalDeposits: 0, totalBonds: 0, totalYield: 0, connectorMode: mode, isConsolidated };
   }
 };

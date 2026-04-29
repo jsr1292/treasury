@@ -1,4 +1,4 @@
-import { getConnector } from './loader';
+import { getConnectorByCompanyIndex } from './loader';
 import type { ApiConnectorConfig, ApiEndpoint, ApiAuth } from './api-types';
 import type { ConnectorConfig } from './types';
 
@@ -8,13 +8,15 @@ interface CacheEntry {
   data: any;
   fetchedAt: number;
   ttl: number;
+  companyIndex: number;
 }
 
 const cache = new Map<string, CacheEntry>();
 
-function getCached(key: string): any | null {
+function getCached(key: string, companyIndex: number): any | null {
   const entry = cache.get(key);
   if (!entry) return null;
+  if (entry.companyIndex !== companyIndex) return null; // Company mismatch
   if (Date.now() - entry.fetchedAt > entry.ttl * 1000) {
     cache.delete(key);
     return null;
@@ -22,8 +24,8 @@ function getCached(key: string): any | null {
   return entry.data;
 }
 
-function setCache(key: string, data: any, ttl: number) {
-  cache.set(key, { data, fetchedAt: Date.now(), ttl });
+function setCache(key: string, data: any, ttl: number, companyIndex: number) {
+  cache.set(key, { data, fetchedAt: Date.now(), ttl, companyIndex });
 }
 
 export function clearCache() {
@@ -32,11 +34,11 @@ export function clearCache() {
 
 // ─── HTTP Fetcher ─────────────────────────────────────────────────
 
-async function apiFetch(endpoint: ApiEndpoint, params: Record<string, string> = {}, config?: ApiConnectorConfig): Promise<any> {
+async function apiFetch(endpoint: ApiEndpoint, params: Record<string, string> = {}, config?: ApiConnectorConfig, companyIndex: number = 0): Promise<any> {
   const cacheKey = endpoint.url + JSON.stringify(params);
   const ttl = endpoint.cacheTtl || config?.cacheTtl || 1800;
   
-  const cached = getCached(cacheKey);
+  const cached = getCached(cacheKey, companyIndex);
   if (cached) return cached;
 
   // Build URL with params
@@ -94,7 +96,7 @@ async function apiFetch(endpoint: ApiEndpoint, params: Record<string, string> = 
 
     const json = await res.json();
     const data = extractData(json, endpoint.dataPath);
-    setCache(cacheKey, data, ttl);
+    setCache(cacheKey, data, ttl, companyIndex);
     return data;
   } catch (e: any) {
     clearTimeout(timer);
@@ -126,9 +128,7 @@ const TYPE_MAP: Record<string, string> = {
 function normalizeType(val: string): string {
   if (!val) return val;
   const lower = val.toLowerCase().trim();
-  // Exact match
   if (TYPE_MAP[lower]) return TYPE_MAP[lower];
-  // Partial match
   for (const [key, mapped] of Object.entries(TYPE_MAP)) {
     if (lower.includes(key) || key.includes(lower)) return mapped;
   }
@@ -140,17 +140,14 @@ function mapFields(rows: any[], fields: Record<string, string>): any[] {
   
   const mappedRows = rows.map((row, index) => {
     const mapped: Record<string, string> = {};
-    // fields: { ourField: theirField }
     for (const [ourField, theirField] of Object.entries(fields)) {
       if (row[theirField] !== undefined) {
         mapped[ourField] = row[theirField];
       }
     }
-    // Normalize type to English if mapped
     if (mapped.type) {
       mapped.type = normalizeType(mapped.type);
     }
-    // Normalize currency: extract ISO code from "Name (XXX)" or "4.000,69 EUR"
     if (mapped.currency) {
       const isoMatch = String(mapped.currency).match(/\b([A-Z]{3})\b/);
       if (isoMatch) {
@@ -160,19 +157,15 @@ function mapFields(rows: any[], fields: Record<string, string>): any[] {
         if (parenMatch) mapped.currency = parenMatch[1];
       }
     }
-    // If no currency but balanceLocal has it (e.g. "4.000,69 EUR"), extract from there
     if (!mapped.currency && mapped.balanceLocal) {
       const curMatch = String(mapped.balanceLocal).match(/\b([A-Z]{3})\b/);
       if (curMatch) mapped.currency = curMatch[1];
     }
-    // Normalize balance: parse European format "4.000,69" → 4000.69
     if (mapped.balance) {
       const raw = String(mapped.balance).replace(/[^0-9.,-]/g, '');
       if (raw.includes(',') && raw.includes('.')) {
-        // European: 1.000,50 → remove dots, comma to dot
         mapped.balance = parseFloat(raw.replace(/\./g, '').replace(',', '.'));
       } else if (raw.includes(',')) {
-        // Could be 4000,69 or just 4,000
         const parts = raw.split(',');
         if (parts[1]?.length === 2) {
           mapped.balance = parseFloat(raw.replace(',', '.'));
@@ -184,11 +177,9 @@ function mapFields(rows: any[], fields: Record<string, string>): any[] {
       }
       if (isNaN(mapped.balance)) delete mapped.balance;
     }
-    // Default isActive to true if not present
     if (mapped.isActive === undefined) {
       mapped.isActive = true;
     }
-    // Ensure id exists for navigation
     if (!mapped.id) {
       mapped.id = mapped.name || String(index + 1);
     }
@@ -204,9 +195,7 @@ function mapFields(rows: any[], fields: Record<string, string>): any[] {
       }
     }
   }
-  // Also link by parentName if available (e.g. Empresa field)
   if (!hq) {
-    // Try to find HQ by name matching parentName values
     const parentNames = new Set(mappedRows.filter(r => r.parentName).map(r => r.parentName));
     for (const pName of parentNames) {
       const parent = mappedRows.find(e => e.name?.includes(pName) || e.id === pName);
@@ -219,7 +208,6 @@ function mapFields(rows: any[], fields: Record<string, string>): any[] {
       }
     }
   }
-  // Clean up internal fields
   for (const row of mappedRows) {
     delete row.parentName;
   }
@@ -229,18 +217,20 @@ function mapFields(rows: any[], fields: Record<string, string>): any[] {
 
 // ─── Public API ───────────────────────────────────────────────────
 
-export function isApiConnector(): boolean {
+export function isApiConnector(companyIndex: number = 0): boolean {
   try {
-    const connector = getConnector();
+    const connector = getConnectorByCompanyIndex(companyIndex);
+    if (!connector) return false;
     return (connector as any).type === 'api';
-    } catch {
+  } catch {
     return false;
   }
 }
 
-export function getApiConfig(): ApiConnectorConfig | null {
+export function getApiConfig(companyIndex: number = 0): ApiConnectorConfig | null {
   try {
-    const connector = getConnector();
+    const connector = getConnectorByCompanyIndex(companyIndex);
+    if (!connector) return null;
     if ((connector as any).type === 'api') return connector as unknown as ApiConnectorConfig;
     return null;
   } catch {
@@ -248,59 +238,57 @@ export function getApiConfig(): ApiConnectorConfig | null {
   }
 }
 
-export async function fetchApiEntities() {
-  const config = getApiConfig();
+export async function fetchApiEntities(companyIndex: number = 0) {
+  const config = getApiConfig(companyIndex);
   if (!config) throw new Error('No API connector configured');
   
-  const rows = await apiFetch(config.entities, {}, config);
+  const rows = await apiFetch(config.entities, {}, config, companyIndex);
   return mapFields(Array.isArray(rows) ? rows : [rows], config.entities.fields);
 }
 
-export async function fetchApiAccounts() {
-  const config = getApiConfig();
+export async function fetchApiAccounts(companyIndex: number = 0) {
+  const config = getApiConfig(companyIndex);
   if (!config) throw new Error('No API connector configured');
   
-  const rows = await apiFetch(config.accounts, {}, config);
+  const rows = await apiFetch(config.accounts, {}, config, companyIndex);
   return mapFields(Array.isArray(rows) ? rows : [rows], config.accounts.fields);
 }
 
-export async function fetchApiBalances() {
-  const config = getApiConfig();
+export async function fetchApiBalances(companyIndex: number = 0) {
+  const config = getApiConfig(companyIndex);
   if (!config) throw new Error('No API connector configured');
   
-  // If balances has its own URL, use it. Otherwise reuse accounts endpoint.
   const endpoint = config.balances?.url ? config.balances : config.accounts;
   const fields = config.balances?.url ? config.balances.fields : (config.balances?.fields || {});
   
-  const rows = await apiFetch(endpoint, {}, config);
+  const rows = await apiFetch(endpoint, {}, config, companyIndex);
   return mapFields(Array.isArray(rows) ? rows : [rows], fields);
 }
 
-export async function fetchApiBalanceHistory(accountId: string) {
-  const config = getApiConfig();
+export async function fetchApiBalanceHistory(accountId: string, companyIndex: number = 0) {
+  const config = getApiConfig(companyIndex);
   if (!config?.balanceHistory) return [];
   
   const paramKey = config.balanceHistory.accountIdParam || 'accountId';
-  const rows = await apiFetch(config.balanceHistory, { [paramKey]: accountId }, config);
+  const rows = await apiFetch(config.balanceHistory, { [paramKey]: accountId }, config, companyIndex);
   return mapFields(Array.isArray(rows) ? rows : [rows], config.balanceHistory.fields);
 }
 
-export async function fetchApiFxRates() {
-  const config = getApiConfig();
+export async function fetchApiFxRates(companyIndex: number = 0) {
+  const config = getApiConfig(companyIndex);
   if (!config?.fxRates) return [];
   
-  const rows = await apiFetch(config.fxRates, {}, config);
+  const rows = await apiFetch(config.fxRates, {}, config, companyIndex);
   return mapFields(Array.isArray(rows) ? rows : [rows], config.fxRates.fields);
 }
 
-export async function fetchApiDashboard() {
+export async function fetchApiDashboard(companyIndex: number = 0) {
   const [entities, accounts, balances] = await Promise.all([
-    fetchApiEntities(),
-    fetchApiAccounts(),
-    fetchApiBalances(),
+    fetchApiEntities(companyIndex),
+    fetchApiAccounts(companyIndex),
+    fetchApiBalances(companyIndex),
   ]);
 
-  // Attach balances to accounts
   const balanceMap = new Map<string, any>();
   for (const b of balances) {
     const key = b.accountId || b.account_id;
@@ -330,13 +318,43 @@ export async function fetchApiDashboard() {
   };
 }
 
+// ─── Consolidated (all companies) ─────────────────────────────────
+
+export async function fetchApiDashboardConsolidated(companyIndices: number[]) {
+  const results = await Promise.all(
+    companyIndices.map(idx => fetchApiDashboard(idx))
+  );
+
+  const allEntities: any[] = [];
+  const allAccounts: any[] = [];
+  const allBalances: any[] = [];
+  const totalsByCurrency: Record<string, number> = {};
+
+  for (const result of results) {
+    allEntities.push(...result.entities);
+    allAccounts.push(...result.accounts);
+    allBalances.push(...result.balances);
+    for (const [currency, total] of Object.entries(result.totalsByCurrency)) {
+      totalsByCurrency[currency] = (totalsByCurrency[currency] || 0) + (total as number);
+    }
+  }
+
+  return {
+    entities: allEntities,
+    accounts: allAccounts,
+    balances: allBalances,
+    totalsByCurrency,
+    anomalies: [],
+    consolidated: true,
+  };
+}
+
 // ─── Connection Test ──────────────────────────────────────────────
 
 export async function testApiConnection(config: ApiConnectorConfig): Promise<{ ok: boolean; message: string; latencyMs: number }> {
   const start = Date.now();
   try {
-    // Try fetching entities as a smoke test
-    await apiFetch(config.entities, {}, config);
+    await apiFetch(config.entities, {}, config, 0);
     return { ok: true, message: 'Connection successful', latencyMs: Date.now() - start };
   } catch (e: any) {
     return { ok: false, message: e.message, latencyMs: Date.now() - start };

@@ -1,25 +1,80 @@
-import { getConnectorMode, getEntities, getAccounts, getBalances } from '$lib/server/data';
+import { getConnectorMode, getEntities, getAccounts, getBalances, getDashboard, getCompanyList } from '$lib/server/data';
 import type { PageServerLoad } from './$types.js';
 
-export const load: PageServerLoad = async () => {
-  const mode = await getConnectorMode();
+export const load: PageServerLoad = async ({ cookies }) => {
+  const companyIndex = parseInt(cookies.get('company') || '0', 10);
+  const mode = await getConnectorMode(companyIndex);
+  const companies = getCompanyList();
+  const isConsolidated = companyIndex === -1;
 
   if (mode === 'api') {
-    // API mode: fetch entities, accounts, balances and compute totals
+    if (isConsolidated) {
+      // Consolidated: aggregate all companies
+      const indices = companies.map((_: any, i: number) => i);
+      const [entities, accounts, balances] = await Promise.all([
+        Promise.all(indices.map((i: number) => getEntities(i))).then(r => r.flat()),
+        Promise.all(indices.map((i: number) => getAccounts(i))).then(r => r.flat()),
+        Promise.all(indices.map((i: number) => getBalances(i))).then(r => r.flat()),
+      ]);
+
+      const balanceMap = new Map<string, any>();
+      for (const b of balances) {
+        const key = String(b.accountId || b.account_id || b.id || '');
+        if (key) balanceMap.set(key, b);
+      }
+
+      const totalsByCurrency: Record<string, number> = {};
+      const enrichedAccounts: any[] = [];
+
+      for (const acct of accounts) {
+        const acctKey = String(acct.id || acct.accountId || acct.name || '');
+        const bal = balanceMap.get(acctKey);
+        const balance = bal ? parseFloat(bal.balance || bal.balanceLocal || 0) : 0;
+        const currency = acct.currency || bal?.currency || 'EUR';
+
+        totalsByCurrency[currency] = (totalsByCurrency[currency] || 0) + balance;
+
+        const entityName = acct.entityName || '—';
+        const matchedEntity = entities.find((e: any) =>
+          e.name === entityName || e.id === entityName ||
+          (e.name && entityName && (e.name.includes(entityName) || entityName.includes(e.name)))
+        );
+
+        enrichedAccounts.push({
+          account: { ...acct, currency },
+          entity: { name: matchedEntity?.name || entityName },
+          latestBalance: bal ? { balance, date: bal.date, currency } : null,
+        });
+      }
+
+      return {
+        balances: enrichedAccounts,
+        entities,
+        totalsByCurrency,
+        anomalies: [],
+        connectorMode: mode,
+        chartDays: 90,
+        historyMap: {},
+        investments: { accounts: [], total: 0, avgRate: 0, count: 0 },
+        companies,
+        selectedCompany: { name: 'All Companies', index: -1 },
+        isConsolidated: true,
+      };
+    }
+
+    // Single company
     const [entities, accounts, balances] = await Promise.all([
-      getEntities(),
-      getAccounts(),
-      getBalances(),
+      getEntities(companyIndex),
+      getAccounts(companyIndex),
+      getBalances(companyIndex),
     ]);
 
-    // Build balance map keyed by account id
     const balanceMap = new Map<string, any>();
     for (const b of balances) {
       const key = String(b.accountId || b.account_id || b.id || '');
       if (key) balanceMap.set(key, b);
     }
 
-    // Compute totals by currency
     const totalsByCurrency: Record<string, number> = {};
     const enrichedAccounts: any[] = [];
 
@@ -31,7 +86,6 @@ export const load: PageServerLoad = async () => {
 
       totalsByCurrency[currency] = (totalsByCurrency[currency] || 0) + balance;
 
-      // Find entity name
       const entityName = acct.entityName || '—';
       const matchedEntity = entities.find((e: any) =>
         e.name === entityName || e.id === entityName ||
@@ -54,13 +108,16 @@ export const load: PageServerLoad = async () => {
       chartDays: 90,
       historyMap: {},
       investments: { accounts: [], total: 0, avgRate: 0, count: 0 },
+      companies,
+      selectedCompany: companies[companyIndex] || companies[0] || { name: 'Company', index: 0 },
+      isConsolidated: false,
     };
   }
 
   // Database mode
-  const { getDashboard } = await import('$lib/server/data');
+  const { getDashboard: dbGetDashboard } = await import('$lib/server/data');
   const { isDatabaseAvailable } = await import('$lib/server/data');
-  const dash = await getDashboard();
+  const dash = await dbGetDashboard();
 
   let investments = { accounts: [], total: 0, avgRate: 0, count: 0 };
 
@@ -129,6 +186,9 @@ export const load: PageServerLoad = async () => {
         chartDays,
         historyMap,
         investments,
+        companies,
+        selectedCompany: companies[companyIndex] || { name: 'Company', index: 0 },
+        isConsolidated: false,
       };
     } catch (e) {
       console.error('[Dashboard] DB query failed:', e);
@@ -141,5 +201,8 @@ export const load: PageServerLoad = async () => {
     chartDays: 90,
     historyMap: {},
     investments,
+    companies,
+    selectedCompany: companies[companyIndex] || { name: 'Company', index: 0 },
+    isConsolidated: false,
   };
 };
