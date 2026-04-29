@@ -53,6 +53,41 @@
         </div>
       </div>
     </div>
+
+    <!-- ── Enhanced Summary Stats ── -->
+    {#if data.summaryStats && data.summaryStats.accountCount > 0}
+      <div class="grid gap-3 mb-5" style="grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));">
+        <div class="stat-card">
+          <div class="text-[10px] font-medium uppercase tracking-[0.08em] mb-2" style="color: var(--text3);">Total Balance</div>
+          <div class="text-xl font-bold mono" style="color: var(--gold);">
+            {formatCurrency(data.summaryStats.totalBalance || 0, 'EUR')}
+          </div>
+          <div class="text-[10px] mt-1" style="color: var(--text3);">across all currencies</div>
+        </div>
+
+        <div class="stat-card">
+          <div class="text-[10px] font-medium uppercase tracking-[0.08em] mb-2" style="color: var(--text3);">Entities</div>
+          <div class="text-xl font-bold mono" style="color: var(--text);">{data.summaryStats.entityCount || 0}</div>
+          <div class="text-[10px] mt-1" style="color: var(--text3);">companies tracked</div>
+        </div>
+
+        <div class="stat-card">
+          <div class="text-[10px] font-medium uppercase tracking-[0.08em] mb-2" style="color: var(--text3);">Banks</div>
+          <div class="text-xl font-bold mono" style="color: var(--text);">{data.summaryStats.bankCount || 0}</div>
+          <div class="text-[10px] mt-1" style="color: var(--text3);">financial institutions</div>
+        </div>
+
+        <div class="stat-card">
+          <div class="text-[10px] font-medium uppercase tracking-[0.08em] mb-2" style="color: var(--text3);">Highest Balance</div>
+          <div class="text-xl font-bold mono" style="color: var(--green);">{formatCurrency(data.summaryStats.maxBalance || 0, 'EUR')}</div>
+        </div>
+
+        <div class="stat-card">
+          <div class="text-[10px] font-medium uppercase tracking-[0.08em] mb-2" style="color: var(--text3);">Lowest Balance</div>
+          <div class="text-xl font-bold mono" style="color: {data.summaryStats.minBalance < 0 ? 'var(--red)' : 'var(--text)'};">{formatCurrency(data.summaryStats.minBalance || 0, 'EUR')}</div>
+        </div>
+      </div>
+    {/if}
   {:else}
     <div class="stat-card text-center py-16 mb-6">
       <div class="text-4xl mb-4">🏦</div>
@@ -158,8 +193,53 @@
   <!-- ── Currency breakdown ── -->
   {#if Object.keys(data.totalsByCurrency).length > 1}
     <div class="stat-card mb-6">
-      <div class="text-[10px] font-semibold uppercase tracking-[0.1em] mb-4" style="color: var(--text3);">Currency Breakdown</div>
+      <div class="text-[10px] font-semibold uppercase tracking-[0.1em] mb-4" style="color: var(--text3);">Currency Exposure</div>
       <CurrencyBreakdown totalsByCurrency={data.totalsByCurrency} />
+    </div>
+  {/if}
+
+  <!-- ── Entity Comparison ── -->
+  {#if data.entityComparison && data.entityComparison.length > 1}
+    <div class="stat-card mb-6">
+      <div class="text-[10px] font-semibold uppercase tracking-[0.1em] mb-4" style="color: var(--text3);">Entity Comparison</div>
+      <div class="space-y-3">
+        {#each data.entityComparison as entity, i}
+          {@const total = entity.total}
+          {@const maxTotal = data.entityComparison[0]?.total || 1}
+          {@const pct = maxTotal > 0 ? (total / maxTotal * 100).toFixed(1) : '0'}
+          {@const isLargest = i === 0}
+          <div class="flex items-center gap-3">
+            <div class="text-xs font-medium w-32 truncate" style="color: var(--text);" title={entity.name}>{entity.name}</div>
+            <div class="flex-1 h-6 rounded-full overflow-hidden" style="background: rgba(255,255,255,0.05);">
+              <div
+                class="h-full rounded-full transition-all"
+                style="width: {pct}%; background: {isLargest ? 'linear-gradient(90deg, var(--gold), var(--gold2))' : 'rgba(201,168,76,0.3)'};"
+              ></div>
+            </div>
+            <div class="text-xs mono font-semibold w-32 text-right" style="color: {isLargest ? 'var(--gold)' : 'var(--text)'};">
+              {formatCurrency(total, entity.currency || 'EUR')}
+            </div>
+            <div class="text-[10px] mono w-12 text-right" style="color: var(--text3);">
+              {pct}%
+            </div>
+          </div>
+        {/each}
+      </div>
+    </div>
+  {:else if data.entityComparison && data.entityComparison.length === 1}
+    <div class="stat-card mb-6">
+      <div class="text-[10px] font-semibold uppercase tracking-[0.1em] mb-3" style="color: var(--text3);">Entity Overview</div>
+      {#each data.entityComparison as entity}
+        <div class="flex items-center justify-between">
+          <div>
+            <div class="text-lg font-bold" style="color: var(--text);">{entity.name}</div>
+            <div class="text-[10px]" style="color: var(--text3);">{entity.accountCount} account{entity.accountCount !== 1 ? 's' : ''}</div>
+          </div>
+          <div class="text-right">
+            <div class="text-xl font-bold mono" style="color: var(--gold);">{formatCurrency(entity.total, entity.currency || 'EUR')}</div>
+          </div>
+        </div>
+      {/each}
     </div>
   {/if}
 

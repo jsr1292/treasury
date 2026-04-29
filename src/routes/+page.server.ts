@@ -9,7 +9,6 @@ export const load: PageServerLoad = async ({ cookies }) => {
 
   if (mode === 'api') {
     if (isConsolidated) {
-      // Consolidated: aggregate all companies
       const indices = companies.map((_: any, i: number) => i);
       const [entities, accounts, balances] = await Promise.all([
         Promise.all(indices.map((i: number) => getEntities(i))).then(r => r.flat()),
@@ -17,101 +16,16 @@ export const load: PageServerLoad = async ({ cookies }) => {
         Promise.all(indices.map((i: number) => getBalances(i))).then(r => r.flat()),
       ]);
 
-      const balanceMap = new Map<string, any>();
-      for (const b of balances) {
-        const key = String(b.accountId || b.account_id || b.id || '');
-        if (key) balanceMap.set(key, b);
-      }
-
-      const totalsByCurrency: Record<string, number> = {};
-      const enrichedAccounts: any[] = [];
-
-      for (const acct of accounts) {
-        const acctKey = String(acct.id || acct.accountId || acct.name || '');
-        const bal = balanceMap.get(acctKey);
-        const balance = bal ? parseFloat(bal.balance || bal.balanceLocal || 0) : 0;
-        const currency = acct.currency || bal?.currency || 'EUR';
-
-        totalsByCurrency[currency] = (totalsByCurrency[currency] || 0) + balance;
-
-        const entityName = acct.entityName || '—';
-        const matchedEntity = entities.find((e: any) =>
-          e.name === entityName || e.id === entityName ||
-          (e.name && entityName && (e.name.includes(entityName) || entityName.includes(e.name)))
-        );
-
-        enrichedAccounts.push({
-          account: { ...acct, currency },
-          entity: { name: matchedEntity?.name || entityName },
-          latestBalance: bal ? { balance, date: bal.date, currency } : null,
-        });
-      }
-
-      return {
-        balances: enrichedAccounts,
-        entities,
-        totalsByCurrency,
-        anomalies: [],
-        connectorMode: mode,
-        chartDays: 90,
-        historyMap: {},
-        investments: { accounts: [], total: 0, avgRate: 0, count: 0 },
-        companies,
-        selectedCompany: { name: 'All Companies', index: -1 },
-        isConsolidated: true,
-      };
+      return buildDashboardData(entities, accounts, balances, mode, companies, true);
     }
 
-    // Single company
     const [entities, accounts, balances] = await Promise.all([
       getEntities(companyIndex),
       getAccounts(companyIndex),
       getBalances(companyIndex),
     ]);
 
-    const balanceMap = new Map<string, any>();
-    for (const b of balances) {
-      const key = String(b.accountId || b.account_id || b.id || '');
-      if (key) balanceMap.set(key, b);
-    }
-
-    const totalsByCurrency: Record<string, number> = {};
-    const enrichedAccounts: any[] = [];
-
-    for (const acct of accounts) {
-      const acctKey = String(acct.id || acct.accountId || acct.name || '');
-      const bal = balanceMap.get(acctKey);
-      const balance = bal ? parseFloat(bal.balance || bal.balanceLocal || 0) : 0;
-      const currency = acct.currency || bal?.currency || 'EUR';
-
-      totalsByCurrency[currency] = (totalsByCurrency[currency] || 0) + balance;
-
-      const entityName = acct.entityName || '—';
-      const matchedEntity = entities.find((e: any) =>
-        e.name === entityName || e.id === entityName ||
-        (e.name && entityName && (e.name.includes(entityName) || entityName.includes(e.name)))
-      );
-
-      enrichedAccounts.push({
-        account: { ...acct, currency },
-        entity: { name: matchedEntity?.name || entityName },
-        latestBalance: bal ? { balance, date: bal.date, currency } : null,
-      });
-    }
-
-    return {
-      balances: enrichedAccounts,
-      entities,
-      totalsByCurrency,
-      anomalies: [],
-      connectorMode: mode,
-      chartDays: 90,
-      historyMap: {},
-      investments: { accounts: [], total: 0, avgRate: 0, count: 0 },
-      companies,
-      selectedCompany: companies[companyIndex] || companies[0] || { name: 'Company', index: 0 },
-      isConsolidated: false,
-    };
+    return buildDashboardData(entities, accounts, balances, mode, companies, false);
   }
 
   // Database mode
@@ -189,6 +103,8 @@ export const load: PageServerLoad = async ({ cookies }) => {
         companies,
         selectedCompany: companies[companyIndex] || { name: 'Company', index: 0 },
         isConsolidated: false,
+        entityComparison: [],
+        summaryStats: {},
       };
     } catch (e) {
       console.error('[Dashboard] DB query failed:', e);
@@ -204,5 +120,92 @@ export const load: PageServerLoad = async ({ cookies }) => {
     companies,
     selectedCompany: companies[companyIndex] || { name: 'Company', index: 0 },
     isConsolidated: false,
+    entityComparison: [],
+    summaryStats: {},
   };
 };
+
+function buildDashboardData(entities: any[], accounts: any[], balances: any[], mode: string, companies: any[], isConsolidated: boolean) {
+  const balanceMap = new Map<string, any>();
+  for (const b of balances) {
+    const key = String(b.accountId || b.account_id || b.id || '');
+    if (key) balanceMap.set(key, b);
+  }
+
+  const totalsByCurrency: Record<string, number> = {};
+  const enrichedAccounts: any[] = [];
+
+  for (const acct of accounts) {
+    const acctKey = String(acct.id || acct.accountId || acct.name || '');
+    const bal = balanceMap.get(acctKey);
+    const balance = bal ? parseFloat(bal.balance || bal.balanceLocal || 0) : 0;
+    const currency = acct.currency || bal?.currency || 'EUR';
+
+    totalsByCurrency[currency] = (totalsByCurrency[currency] || 0) + balance;
+
+    const entityName = acct.entityName || '—';
+    const matchedEntity = entities.find((e: any) =>
+      e.name === entityName || e.id === entityName ||
+      (e.name && entityName && (e.name.includes(entityName) || entityName.includes(e.name)))
+    );
+
+    enrichedAccounts.push({
+      account: { ...acct, currency },
+      entity: { name: matchedEntity?.name || entityName },
+      latestBalance: bal ? { balance, date: bal.date, currency } : null,
+    });
+  }
+
+  // Entity comparison: sum balances by entity
+  const entityTotals: Record<string, { name: string; total: number; currency: string; accountCount: number }> = {};
+  for (const { account, entity, latestBalance } of enrichedAccounts) {
+    const eName = entity.name || 'Unknown';
+    if (!entityTotals[eName]) {
+      entityTotals[eName] = { name: eName, total: 0, currency: account.currency || 'EUR', accountCount: 0 };
+    }
+    if (latestBalance) {
+      entityTotals[eName].total += latestBalance.balance;
+      entityTotals[eName].accountCount++;
+    }
+  }
+
+  const entityComparison = Object.values(entityTotals)
+    .filter(e => e.accountCount > 0)
+    .sort((a, b) => b.total - a.total);
+
+  // Summary stats
+  const allBalances = enrichedAccounts
+    .filter(a => a.latestBalance)
+    .map(a => a.latestBalance.balance);
+
+  const totalBalance = allBalances.reduce((s, v) => s + v, 0);
+  const maxBalance = allBalances.length > 0 ? Math.max(...allBalances) : 0;
+  const minBalance = allBalances.length > 0 ? Math.min(...allBalances) : 0;
+  const banks = new Set(accounts.map((a: any) => a.bankName).filter(Boolean)).size;
+  const uniqueEntities = new Set(entities.map((e: any) => e.name).filter(Boolean)).size;
+
+  const summaryStats = {
+    totalBalance,
+    maxBalance,
+    minBalance,
+    entityCount: uniqueEntities,
+    accountCount: accounts.length,
+    bankCount: banks,
+  };
+
+  return {
+    balances: enrichedAccounts,
+    entities,
+    totalsByCurrency,
+    anomalies: [],
+    connectorMode: mode,
+    chartDays: 90,
+    historyMap: {},
+    investments: { accounts: [], total: 0, avgRate: 0, count: 0 },
+    companies,
+    selectedCompany: companies[0] || { name: 'Company', index: 0 },
+    isConsolidated,
+    entityComparison,
+    summaryStats,
+  };
+}
