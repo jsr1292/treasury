@@ -29,6 +29,17 @@
   let accountsDataPath = $state('');
   let balancesDataPath = $state('');
 
+  // Pagination per endpoint
+  let entitiesPaginationType = $state<'none' | 'offset' | 'cursor' | 'link_header'>('none');
+  let accountsPaginationType = $state<'none' | 'offset' | 'cursor' | 'link_header'>('none');
+  let balancesPaginationType = $state<'none' | 'offset' | 'cursor' | 'link_header'>('none');
+  let entitiesPaginationPageSize = $state(100);
+  let accountsPaginationPageSize = $state(100);
+  let balancesPaginationPageSize = $state(100);
+  let entitiesPaginationCursorPath = $state('');
+  let accountsPaginationCursorPath = $state('');
+  let balancesPaginationCursorPath = $state('');
+
   // Visual mapper connections
   let entityConnections = $state<Record<string, string>>({});
   let accountConnections = $state<Record<string, string>>({});
@@ -140,6 +151,17 @@
     entitiesDataPath = c.entities?.dataPath || '';
     accountsDataPath = c.accounts?.dataPath || '';
     balancesDataPath = c.balances?.dataPath || '';
+
+    // Pagination
+    entitiesPaginationType = c.entities?.pagination?.type || 'none';
+    accountsPaginationType = c.accounts?.pagination?.type || 'none';
+    balancesPaginationType = c.balances?.pagination?.type || 'none';
+    entitiesPaginationPageSize = c.entities?.pagination?.pageSize || 100;
+    accountsPaginationPageSize = c.accounts?.pagination?.pageSize || 100;
+    balancesPaginationPageSize = c.balances?.pagination?.pageSize || 100;
+    entitiesPaginationCursorPath = c.entities?.pagination?.cursorPath || '';
+    accountsPaginationCursorPath = c.accounts?.pagination?.cursorPath || '';
+    balancesPaginationCursorPath = c.balances?.pagination?.cursorPath || '';
     
     // Clear mapper state
     entityConnections = reverseMap(c.entities?.fields);
@@ -231,6 +253,14 @@
     return auth;
   }
 
+  function buildPaginationConfig(type: string, pageSize: number, cursorPath: string) {
+    if (type === 'none') return undefined;
+    const cfg: any = { type };
+    if (type === 'offset') { cfg.pageSize = pageSize; }
+    if (type === 'cursor') { cfg.cursorPath = cursorPath || 'next_cursor'; }
+    return cfg;
+  }
+
   function buildConfig() {
     return {
       type: 'api',
@@ -239,9 +269,9 @@
       cacheTtl,
       timeout,
       refreshInterval,
-      entities: { url: entitiesUrl, fields: connectionsToFields(entityConnections, entityTransforms), ...(entitiesDataPath ? { dataPath: entitiesDataPath } : {}) },
-      accounts: { url: accountsUrl, fields: connectionsToFields(accountConnections, accountTransforms), ...(accountsDataPath ? { dataPath: accountsDataPath } : {}) },
-      balances: { url: balancesUrl, fields: connectionsToFields(balanceConnections, balanceTransforms), ...(balancesDataPath ? { dataPath: balancesDataPath } : {}) },
+      entities: { url: entitiesUrl, fields: connectionsToFields(entityConnections, entityTransforms), ...(entitiesDataPath ? { dataPath: entitiesDataPath } : {}), ...(buildPaginationConfig(entitiesPaginationType, entitiesPaginationPageSize, entitiesPaginationCursorPath) ? { pagination: buildPaginationConfig(entitiesPaginationType, entitiesPaginationPageSize, entitiesPaginationCursorPath) } : {}) },
+      accounts: { url: accountsUrl, fields: connectionsToFields(accountConnections, accountTransforms), ...(accountsDataPath ? { dataPath: accountsDataPath } : {}), ...(buildPaginationConfig(accountsPaginationType, accountsPaginationPageSize, accountsPaginationCursorPath) ? { pagination: buildPaginationConfig(accountsPaginationType, accountsPaginationPageSize, accountsPaginationCursorPath) } : {}) },
+      balances: { url: balancesUrl, fields: connectionsToFields(balanceConnections, balanceTransforms), ...(balancesDataPath ? { dataPath: balancesDataPath } : {}), ...(buildPaginationConfig(balancesPaginationType, balancesPaginationPageSize, balancesPaginationCursorPath) ? { pagination: buildPaginationConfig(balancesPaginationType, balancesPaginationPageSize, balancesPaginationCursorPath) } : {}) },
     };
   }
 
@@ -509,7 +539,24 @@
     <input bind:value={entitiesUrl} placeholder="https://api.company.com/entities" style={inputStyle} />
     <div style="display: grid; grid-template-columns: 1fr 2fr; gap: 8px; margin-top: 6px;">
       <input bind:value={entitiesDataPath} placeholder="Data path (e.g. results)" style="font-size: 10px; padding: 5px 8px; background: var(--bg-surface); border: 1px solid var(--border); border-radius: 4px; color: var(--text);" />
+      <select bind:value={entitiesPaginationType} style="font-size: 10px; padding: 5px 8px; background: var(--bg-surface); border: 1px solid var(--border); border-radius: 4px; color: var(--text);">
+        <option value="none">No pagination</option>
+        <option value="offset">Offset + Limit</option>
+        <option value="cursor">Cursor</option>
+        <option value="link_header">Link Header</option>
+      </select>
     </div>
+    {#if entitiesPaginationType === 'offset'}
+      <div style="margin-top: 6px;">
+        <input type="number" bind:value={entitiesPaginationPageSize} placeholder="Page size" style="font-size: 10px; padding: 5px 8px; background: var(--bg-surface); border: 1px solid var(--border); border-radius: 4px; color: var(--text); width: 100px;" />
+        <span style="font-size: 9px; color: var(--text3); margin-left: 6px;">items per page</span>
+      </div>
+    {:else if entitiesPaginationType === 'cursor'}
+      <div style="margin-top: 6px;">
+        <input bind:value={entitiesPaginationCursorPath} placeholder="Cursor path (e.g. next_cursor)" style="font-size: 10px; padding: 5px 8px; background: var(--bg-surface); border: 1px solid var(--border); border-radius: 4px; color: var(--text); width: 200px;" />
+        <span style="font-size: 9px; color: var(--text3); margin-left: 6px;">JSONPath to next cursor</span>
+      </div>
+    {/if}
     {#if entityApiFields.length > 0}
       <div style="margin-top: 12px;">
         <FieldMapper apiFields={entityApiFields} internalFields={entityInternalFields} bind:connections={entityConnections} sampleValues={entitySamples} />
@@ -539,9 +586,26 @@
       </button>
     </div>
     <input bind:value={accountsUrl} placeholder="https://api.company.com/accounts" style={inputStyle} />
-    <div style="margin-top: 6px;">
-      <input bind:value={accountsDataPath} placeholder="Data path (e.g. results)" style="font-size: 10px; padding: 5px 8px; background: var(--bg-surface); border: 1px solid var(--border); border-radius: 4px; color: var(--text); width: 100%;" />
+    <div style="display: grid; grid-template-columns: 1fr 2fr; gap: 8px; margin-top: 6px;">
+      <input bind:value={accountsDataPath} placeholder="Data path (e.g. results)" style="font-size: 10px; padding: 5px 8px; background: var(--bg-surface); border: 1px solid var(--border); border-radius: 4px; color: var(--text);" />
+      <select bind:value={accountsPaginationType} style="font-size: 10px; padding: 5px 8px; background: var(--bg-surface); border: 1px solid var(--border); border-radius: 4px; color: var(--text);">
+        <option value="none">No pagination</option>
+        <option value="offset">Offset + Limit</option>
+        <option value="cursor">Cursor</option>
+        <option value="link_header">Link Header</option>
+      </select>
     </div>
+    {#if accountsPaginationType === 'offset'}
+      <div style="margin-top: 6px;">
+        <input type="number" bind:value={accountsPaginationPageSize} placeholder="Page size" style="font-size: 10px; padding: 5px 8px; background: var(--bg-surface); border: 1px solid var(--border); border-radius: 4px; color: var(--text); width: 100px;" />
+        <span style="font-size: 9px; color: var(--text3); margin-left: 6px;">items per page</span>
+      </div>
+    {:else if accountsPaginationType === 'cursor'}
+      <div style="margin-top: 6px;">
+        <input bind:value={accountsPaginationCursorPath} placeholder="Cursor path (e.g. next_cursor)" style="font-size: 10px; padding: 5px 8px; background: var(--bg-surface); border: 1px solid var(--border); border-radius: 4px; color: var(--text); width: 200px;" />
+        <span style="font-size: 9px; color: var(--text3); margin-left: 6px;">JSONPath to next cursor</span>
+      </div>
+    {/if}
     {#if accountApiFields.length > 0}
       <div style="margin-top: 12px;">
         <FieldMapper apiFields={accountApiFields} internalFields={accountInternalFields} bind:connections={accountConnections} sampleValues={accountSamples} />
@@ -574,9 +638,26 @@
     {#if !balancesUrl && accountsUrl}
       <div style="font-size: 9px; color: var(--text-dim); margin-top: 4px;">↳ Sharing Accounts endpoint</div>
     {/if}
-    <div style="margin-top: 6px;">
-      <input bind:value={balancesDataPath} placeholder="Data path" style="font-size: 10px; padding: 5px 8px; background: var(--bg-surface); border: 1px solid var(--border); border-radius: 4px; color: var(--text); width: 100%;" />
+    <div style="display: grid; grid-template-columns: 1fr 2fr; gap: 8px; margin-top: 6px;">
+      <input bind:value={balancesDataPath} placeholder="Data path" style="font-size: 10px; padding: 5px 8px; background: var(--bg-surface); border: 1px solid var(--border); border-radius: 4px; color: var(--text);" />
+      <select bind:value={balancesPaginationType} style="font-size: 10px; padding: 5px 8px; background: var(--bg-surface); border: 1px solid var(--border); border-radius: 4px; color: var(--text);">
+        <option value="none">No pagination</option>
+        <option value="offset">Offset + Limit</option>
+        <option value="cursor">Cursor</option>
+        <option value="link_header">Link Header</option>
+      </select>
     </div>
+    {#if balancesPaginationType === 'offset'}
+      <div style="margin-top: 6px;">
+        <input type="number" bind:value={balancesPaginationPageSize} placeholder="Page size" style="font-size: 10px; padding: 5px 8px; background: var(--bg-surface); border: 1px solid var(--border); border-radius: 4px; color: var(--text); width: 100px;" />
+        <span style="font-size: 9px; color: var(--text3); margin-left: 6px;">items per page</span>
+      </div>
+    {:else if balancesPaginationType === 'cursor'}
+      <div style="margin-top: 6px;">
+        <input bind:value={balancesPaginationCursorPath} placeholder="Cursor path (e.g. next_cursor)" style="font-size: 10px; padding: 5px 8px; background: var(--bg-surface); border: 1px solid var(--border); border-radius: 4px; color: var(--text); width: 200px;" />
+        <span style="font-size: 9px; color: var(--text3); margin-left: 6px;">JSONPath to next cursor</span>
+      </div>
+    {/if}
     {#if balanceApiFields.length > 0}
       <div style="margin-top: 12px;">
         <FieldMapper apiFields={balanceApiFields} internalFields={balanceInternalFields} bind:connections={balanceConnections} sampleValues={balanceSamples} />

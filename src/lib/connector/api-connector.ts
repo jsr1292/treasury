@@ -2,6 +2,8 @@ import { getConnectorByCompanyIndex } from './loader';
 import type { ApiConnectorConfig, ApiEndpoint, ApiAuth } from './api-types';
 import type { ConnectorConfig } from './types';
 import { applyTransforms, type TransformStep } from './transforms';
+import { buildPaginationParams, extractCursor, extractLinkNext, shouldContinue, type PaginationConfig } from './pagination';
+import { extractByPath } from './jsonpath';
 
 // ─── Cache ────────────────────────────────────────────────────────
 
@@ -42,79 +44,124 @@ async function apiFetch(endpoint: ApiEndpoint, params: Record<string, string> = 
   const cached = getCached(cacheKey, companyIndex);
   if (cached) return cached;
 
-  // Build URL with params
-  let url = endpoint.url;
-  for (const [key, val] of Object.entries(params)) {
-    url = url.replace(`{${key}}`, encodeURIComponent(val));
-  }
+  const pagination = (endpoint as any).pagination as PaginationConfig | undefined;
+  const allData: any[] = [];
+  let page = pagination?.startPage ?? 1;
+  let cursor: string | undefined;
+  let nextLink: string | undefined;
 
-  // Build headers
-  const headers: Record<string, string> = {
-    'Accept': 'application/json',
-    ...(config?.auth?.headers || {}),
-  };
+  // For link_header pagination, we iterate by following Link: rel="next" headers
+  // For offset/cursor pagination, we iterate by building params
+  while (true) {
+    // Build URL with params
+    let url = endpoint.url;
 
-  if (config?.auth) {
-    switch (config.auth.type) {
-      case 'bearer':
-        if (config.auth.token) headers['Authorization'] = `Bearer ${config.auth.token}`;
-        break;
-      case 'basic':
-        if (config.auth.username && config.auth.password) {
-          headers['Authorization'] = `Basic ${Buffer.from(`${config.auth.username}:${config.auth.password}`).toString('base64')}`;
-        }
-        break;
-      case 'api-key':
-        if (config.auth.headerName && config.auth.apiKey) {
-          headers[config.auth.headerName] = config.auth.apiKey;
-        }
-        break;
+    // Build pagination params for offset/cursor types
+    let pageParams: Record<string, string> = {};
+    if (pagination && pagination.type !== 'none' && pagination.type !== 'link_header') {
+      pageParams = buildPaginationParams(pagination, page, cursor);
+    } else if (pagination?.type === 'link_header' && nextLink) {
+      url = nextLink; // Override URL for link_header
     }
-  }
 
-  const timeout = endpoint.timeout || config?.timeout || 15000;
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), timeout);
+    // Replace path params first
+    for (const [key, val] of Object.entries({ ...params, ...pageParams })) {
+      url = url.replace(`{${key}}`, encodeURIComponent(val));
+    }
 
-  try {
-    const opts: RequestInit = { method: endpoint.method || 'GET', headers, signal: controller.signal };
-    
-    if (endpoint.method === 'POST' && endpoint.body) {
-      let body = JSON.stringify(endpoint.body);
-      for (const [key, val] of Object.entries(params)) {
-        body = body.replace(`{${key}}`, val);
+    // Build headers
+    const headers: Record<string, string> = {
+      'Accept': 'application/json',
+      ...(config?.auth?.headers || {}),
+    };
+
+    if (config?.auth) {
+      switch (config.auth.type) {
+        case 'bearer':
+          if (config.auth.token) headers['Authorization'] = `Bearer ${config.auth.token}`;
+          break;
+        case 'basic':
+          if (config.auth.username && config.auth.password) {
+            headers['Authorization'] = `Basic ${Buffer.from(`${config.auth.username}:${config.auth.password}`).toString('base64')}`;
+          }
+          break;
+        case 'api-key':
+          if (config.auth.headerName && config.auth.apiKey) {
+            headers[config.auth.headerName] = config.auth.apiKey;
+          }
+          break;
       }
-      headers['Content-Type'] = 'application/json';
-      opts.body = body;
     }
 
-    const res = await fetch(url, opts);
-    clearTimeout(timer);
+    const timeout = endpoint.timeout || config?.timeout || 15000;
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeout);
 
-    if (!res.ok) {
-      throw new Error(`API ${res.status}: ${res.statusText} — ${url}`);
+    let res: Response;
+    try {
+      const opts: RequestInit = { method: endpoint.method || 'GET', headers, signal: controller.signal };
+
+      if (endpoint.method === 'POST' && endpoint.body) {
+        let body = JSON.stringify(endpoint.body);
+        for (const [key, val] of Object.entries({ ...params, ...pageParams })) {
+          body = body.replace(`{${key}}`, val);
+        }
+        headers['Content-Type'] = 'application/json';
+        opts.body = body;
+      }
+
+      res = await fetch(url, opts);
+      clearTimeout(timer);
+
+      if (!res.ok) {
+        throw new Error(`API ${res.status}: ${res.statusText} — ${url}`);
+      }
+
+      const json = await res.json();
+
+      // Extract the data array
+      const rawData = pagination?.dataPath
+        ? extractByPath(json, pagination.dataPath)
+        : extractByPath(json, endpoint.dataPath ?? '');
+
+      const pageData = Array.isArray(rawData) ? rawData : [rawData];
+
+      // For non-paginated calls, just return the data
+      if (!pagination || pagination.type === 'none') {
+        setCache(cacheKey, pageData, ttl, companyIndex);
+        return pageData;
+      }
+
+      // Accumulate data
+      if (pageData.length > 0) {
+        allData.push(...pageData);
+      }
+
+      // Determine next iteration
+      if (pagination.type === 'link_header') {
+        nextLink = extractLinkNext(res.headers);
+        if (!nextLink) break;
+      } else if (pagination.type === 'cursor') {
+        cursor = extractCursor(json, pagination.cursorPath ?? 'next_cursor');
+        if (!cursor) break;
+      } else if (pagination.type === 'offset') {
+        if (!shouldContinue(pagination, page, pageData)) break;
+        page++;
+      }
+
+      // Safety check
+      if (allData.length >= (pagination.maxPages ?? 50) * (pagination.pageSize ?? 100)) {
+        break;
+      }
+    } catch (e: any) {
+      clearTimeout(timer);
+      if (e.name === 'AbortError') throw new Error(`API timeout (${timeout}ms): ${url}`);
+      throw e;
     }
-
-    const json = await res.json();
-    const data = extractData(json, endpoint.dataPath);
-    setCache(cacheKey, data, ttl, companyIndex);
-    return data;
-  } catch (e: any) {
-    clearTimeout(timer);
-    if (e.name === 'AbortError') throw new Error(`API timeout (${timeout}ms): ${url}`);
-    throw e;
   }
-}
 
-function extractData(json: any, dataPath?: string): any {
-  if (!dataPath) return json;
-  const parts = dataPath.split('.');
-  let current = json;
-  for (const part of parts) {
-    if (current == null) return null;
-    current = current[part];
-  }
-  return current;
+  setCache(cacheKey, allData, ttl, companyIndex);
+  return allData;
 }
 
 // ─── Field Mapping ────────────────────────────────────────────────
