@@ -1,5 +1,6 @@
 <script lang="ts">
   import { applyTransforms, previewTransforms, getTransformTypes, TRANSFORM_DESCRIPTIONS, getDefaultParams, parseCoalesceFields, parseLookupTable } from '$lib/connector/transforms';
+  import { PRESETS, PRESET_ENTRIES } from '$lib/connector/presets';
   import type { TransformStep } from '$lib/connector/transforms';
 
   interface Props {
@@ -22,6 +23,7 @@
 
   let expanded = $state(false);
   let addingType = $state<string | null>(null);
+  let showPresets = $state(false);
   let testResult = $state<{ steps: { type: string; input: any; output: any }[]; final: any } | null>(null);
   let editingIndex = $state<number | null>(null);
 
@@ -67,6 +69,15 @@
     [next[index], next[index + 1]] = [next[index + 1], next[index]];
     transforms = next;
     onchange?.(transforms);
+  }
+
+  function applyPreset(presetKey: string) {
+    const preset = PRESETS[presetKey];
+    if (!preset) return;
+    // Append the preset's transforms to the chain
+    transforms = [...transforms, ...preset.transforms.map(t => ({ ...t, params: { ...t.params } }))];
+    onchange?.(transforms);
+    showPresets = false;
   }
 
   function runTest() {
@@ -238,36 +249,66 @@
       {/if}
 
       <!-- Add transform step -->
-      {#if addingType}
+      <!-- Presets dropdown -->
+      {#if showPresets && addingType === null}
         <div style="margin-top: 8px; padding: 8px; background: var(--bg-surface); border: 1px solid var(--border); border-radius: 6px;">
-          <div style="font-size: 8px; color: var(--text3); text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 6px;">Choose transform type</div>
+          <div style="font-size: 8px; color: var(--text3); text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 6px;">⚡ Presets</div>
           <div style="display: flex; flex-direction: column; gap: 3px;">
-            {#each availableTypes as type}
-              {@const desc = TRANSFORM_DESCRIPTIONS[type]}
+            {#each PRESET_ENTRIES as [presetKey, preset]}
               <button
-                onclick={() => addStep(type)}
+                onclick={() => applyPreset(presetKey)}
                 style="display: flex; align-items: center; gap: 6px; padding: 5px 8px; border: 1px solid var(--border); border-radius: 5px; background: var(--bg-card); cursor: pointer; text-align: left; transition: all 0.1s;"
                 onmouseenter={(e) => e.currentTarget.style.borderColor = 'var(--gold)'}
                 onmouseleave={(e) => e.currentTarget.style.borderColor = 'var(--border)'}
               >
-                <span style="font-size: 11px;">{desc?.icon ?? '⚙'}</span>
+                <span style="font-size: 11px;">⚡</span>
                 <div>
-                  <div style="font-size: 9px; font-weight: 600; color: var(--text);">{desc?.label ?? type}</div>
-                  <div style="font-size: 8px; color: var(--text3);">{desc?.description ?? ''}</div>
+                  <div style="font-size: 9px; font-weight: 600; color: var(--text);">{preset.name}</div>
+                  <div style="font-size: 8px; color: var(--text3);">{preset.description}</div>
                 </div>
               </button>
             {/each}
           </div>
         </div>
+      {/if}
+
+      {#if addingType}
+        <div style="display: flex; flex-direction: column; gap: 3px;">
+          {#each availableTypes as type}
+            {@const desc = TRANSFORM_DESCRIPTIONS[type]}
+            <button
+              onclick={() => addStep(type)}
+              style="display: flex; align-items: center; gap: 6px; padding: 5px 8px; border: 1px solid var(--border); border-radius: 5px; background: var(--bg-card); cursor: pointer; text-align: left; transition: all 0.1s;"
+              onmouseenter={(e) => e.currentTarget.style.borderColor = 'var(--gold)'}
+              onmouseleave={(e) => e.currentTarget.style.borderColor = 'var(--border)'}
+            >
+              <span style="font-size: 11px;">{desc?.icon ?? '⚙'}</span>
+              <div>
+                <div style="font-size: 9px; font-weight: 600; color: var(--text);">{desc?.label ?? type}</div>
+                <div style="font-size: 8px; color: var(--text3);">{desc?.description ?? ''}</div>
+              </div>
+            </button>
+          {/each}
+        </div>
       {:else}
-        <button
-          onclick={() => addingType = 'string'}
-          style="margin-top: 6px; font-size: 9px; padding: 4px 10px; border: 1px dashed var(--border); border-radius: 5px; background: transparent; color: var(--text3); cursor: pointer; transition: all 0.1s; width: 100%;"
-          onmouseenter={(e) => { e.currentTarget.style.borderColor = 'var(--gold)'; e.currentTarget.style.color = 'var(--gold)'; }}
-          onmouseleave={(e) => { e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.color = 'var(--text3)'; }}
-        >
-          + Add transform step
-        </button>
+        <div style="margin-top: 6px; display: flex; gap: 6px; align-items: center;">
+          <button
+            onclick={() => { showPresets = !showPresets; addingType = null; }}
+            style="flex: 1; font-size: 9px; padding: 4px 10px; border: 1px dashed {showPresets ? 'var(--gold)' : 'var(--border)'}; border-radius: 5px; background: {showPresets ? 'rgba(201,168,76,0.08)' : 'transparent'}; color: {showPresets ? 'var(--gold)' : 'var(--text3)'}; cursor: pointer; transition: all 0.1s;"
+            onmouseenter={(e) => { e.currentTarget.style.borderColor = 'var(--gold)'; e.currentTarget.style.color = 'var(--gold)'; }}
+            onmouseleave={(e) => { if (!showPresets) { e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.color = 'var(--text3)'; } }}
+          >
+            ⚡ Presets
+          </button>
+          <button
+            onclick={() => { addingType = 'string'; showPresets = false; }}
+            style="flex: 1; font-size: 9px; padding: 4px 10px; border: 1px dashed var(--border); border-radius: 5px; background: transparent; color: var(--text3); cursor: pointer; transition: all 0.1s;"
+            onmouseenter={(e) => { e.currentTarget.style.borderColor = 'var(--gold)'; e.currentTarget.style.color = 'var(--gold)'; }}
+            onmouseleave={(e) => { e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.color = 'var(--text3)'; }}
+          >
+            + Add step
+          </button>
+        </div>
       {/if}
 
       <!-- Test button -->

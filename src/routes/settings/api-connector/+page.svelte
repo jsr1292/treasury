@@ -337,6 +337,49 @@
     testing = false;
   }
 
+  function exportConfig() {
+    saveCompanyConfig(activeCompanyIndex);
+    const config = isMultiCompany
+      ? { companies: companies }
+      : buildConfig();
+    const blob = new Blob([JSON.stringify(config, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'connector.json';
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  function importConfig(event: Event) {
+    const file = (event.target as HTMLInputElement).files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const config = JSON.parse(e.target?.result as string);
+        if (config.companies && Array.isArray(config.companies)) {
+          isMultiCompany = true;
+          companies = config.companies.map((c: any) => ({
+            name: c.name || 'Company',
+            connector: c.connector || c,
+          }));
+          loadCompanyConfig(0);
+        } else {
+          isMultiCompany = false;
+          companies = [{ name: config.name || 'Company', connector: config }];
+          loadCompanyConfig(0);
+        }
+        error = '';
+      } catch (err) {
+        error = 'Invalid connector JSON file';
+      }
+    };
+    reader.readAsText(file);
+    // Reset input so same file can be re-imported
+    (event.target as HTMLInputElement).value = '';
+  }
+
   const inputStyle = 'width: 100%; font-size: 12px; padding: 8px 10px; background: var(--bg-card); border: 1px solid var(--border); border-radius: 6px; color: var(--text);';
   const labelStyle = 'display: block; font-size: 9px; color: var(--text-muted); letter-spacing: 0.1em; text-transform: uppercase; margin-bottom: 4px;';
 
@@ -568,7 +611,7 @@
   </div>
 
   <!-- Actions -->
-  <div style="display: flex; gap: 10px; align-items: center;">
+  <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
     <button onclick={testConnection} disabled={testing || !entitiesUrl} style="font-size: 10px; padding: 8px 16px; border: 1px solid var(--gold); border-radius: 6px; background: rgba(201,168,76,0.1); color: var(--gold); cursor: pointer;">
       {testing ? 'Testing...' : '⚡ Test'}
     </button>
@@ -576,6 +619,15 @@
       {saving ? 'Saving...' : '💾 Save'}
     </button>
     {#if saved}<span style="font-size: 10px; color: var(--green);">✓ Saved</span>{/if}
+
+    <!-- Import / Export -->
+    <button onclick={exportConfig} style="font-size: 10px; padding: 8px 16px; border: 1px solid var(--border); border-radius: 6px; background: transparent; color: var(--text3); cursor: pointer;">
+      📤 Export
+    </button>
+    <label style="font-size: 10px; padding: 8px 16px; border: 1px solid var(--border); border-radius: 6px; background: transparent; color: var(--text3); cursor: pointer;">
+      📥 Import
+      <input type="file" accept=".json" onchange={importConfig} style="display: none;" />
+    </label>
   </div>
 
   {#if testResult}
