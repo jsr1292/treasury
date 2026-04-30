@@ -1,6 +1,7 @@
 import { getConnectorByCompanyIndex } from './loader';
 import type { ApiConnectorConfig, ApiEndpoint, ApiAuth } from './api-types';
 import type { ConnectorConfig } from './types';
+import { applyTransforms, type TransformStep } from './transforms';
 
 // ─── Cache ────────────────────────────────────────────────────────
 
@@ -118,6 +119,31 @@ function extractData(json: any, dataPath?: string): any {
 
 // ─── Field Mapping ────────────────────────────────────────────────
 
+/**
+ * Normalize a FieldConfig value.
+ * Supports both old format (string) and new format ({ source, transforms }).
+ */
+function normalizeFieldConfig(fieldValue: any): { source: string; transforms: TransformStep[] } {
+  if (typeof fieldValue === 'string') {
+    return { source: fieldValue, transforms: [] };
+  }
+  if (fieldValue && typeof fieldValue === 'object' && 'source' in fieldValue) {
+    return { source: fieldValue.source, transforms: fieldValue.transforms ?? [] };
+  }
+  return { source: String(fieldValue), transforms: [] };
+}
+
+/**
+ * Resolve the value of a source field, supporting coalesce.
+ * If the field name is not found but the config has coalesce transforms, those are handled by applyTransforms.
+ */
+function resolveSourceValue(row: any, source: string): any {
+  if (row && typeof row === 'object' && source in row) {
+    return row[source];
+  }
+  return undefined;
+}
+
 const TYPE_MAP: Record<string, string> = {
   'sucursal': 'branch', 'filial': 'subsidiary', 'sede': 'headquarters',
   'casa matriz': 'headquarters', 'matriz': 'headquarters', 'oficina': 'branch',
@@ -153,51 +179,32 @@ function normalizeType(val: string): string {
   return val;
 }
 
-function mapFields(rows: any[], fields: Record<string, string>): any[] {
+function mapFields(rows: any[], fields: Record<string, any>): any[] {
   if (!rows || !Array.isArray(rows)) return [];
-  
+
   const mappedRows = rows.map((row, index) => {
-    const mapped: Record<string, string> = {};
-    for (const [ourField, theirField] of Object.entries(fields)) {
-      if (row[theirField] !== undefined) {
-        mapped[ourField] = row[theirField];
+    const mapped: Record<string, any> = {};
+
+    for (const [ourField, fieldConfig] of Object.entries(fields)) {
+      const { source, transforms } = normalizeFieldConfig(fieldConfig);
+      let rawValue = resolveSourceValue(row, source);
+
+      // Apply transform pipeline
+      const transformed = applyTransforms(rawValue, transforms, row);
+      if (transformed !== null) {
+        mapped[ourField] = transformed;
       }
     }
+
+    // Post-processing: normalize type field
     if (mapped.type) {
       mapped.type = normalizeType(mapped.type);
     }
-    if (mapped.currency) {
-      const isoMatch = String(mapped.currency).match(/\b([A-Z]{3})\b/);
-      if (isoMatch) {
-        mapped.currency = isoMatch[1];
-      } else {
-        const parenMatch = String(mapped.currency).match(/\(([A-Z]{3})\)/);
-        if (parenMatch) mapped.currency = parenMatch[1];
-      }
-    }
-    if (!mapped.currency && mapped.balanceLocal) {
-      const curMatch = String(mapped.balanceLocal).match(/\b([A-Z]{3})\b/);
-      if (curMatch) mapped.currency = curMatch[1];
-    }
-    if (mapped.balance) {
-      const raw = String(mapped.balance).replace(/[^0-9.,-]/g, '');
-      if (raw.includes(',') && raw.includes('.')) {
-        mapped.balance = parseFloat(raw.replace(/\./g, '').replace(',', '.'));
-      } else if (raw.includes(',')) {
-        const parts = raw.split(',');
-        if (parts[1]?.length === 2) {
-          mapped.balance = parseFloat(raw.replace(',', '.'));
-        } else {
-          mapped.balance = parseFloat(raw.replace(',', ''));
-        }
-      } else {
-        mapped.balance = parseFloat(raw);
-      }
-      if (isNaN(mapped.balance)) delete mapped.balance;
-    }
+    // Auto-fill isActive
     if (mapped.isActive === undefined) {
       mapped.isActive = true;
     }
+    // Auto-generate id if missing
     if (!mapped.id) {
       mapped.id = mapped.name || String(index + 1);
     }

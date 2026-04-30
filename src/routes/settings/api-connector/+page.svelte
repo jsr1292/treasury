@@ -1,6 +1,8 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import FieldMapper from '$lib/components/FieldMapper.svelte';
+  import TransformBuilder from '$lib/components/TransformBuilder.svelte';
+  import type { TransformStep } from '$lib/connector/transforms';
 
   let { data } = $props();
 
@@ -41,6 +43,11 @@
   let entitySamples = $state<Record<string, string>>({});
   let accountSamples = $state<Record<string, string>>({});
   let balanceSamples = $state<Record<string, string>>({});
+
+  // Transforms per internal field key
+  let entityTransforms = $state<Record<string, TransformStep[]>>({});
+  let accountTransforms = $state<Record<string, TransformStep[]>>({});
+  let balanceTransforms = $state<Record<string, TransformStep[]>>({});
 
   // Extra
   let cacheTtl = $state(1800);
@@ -144,6 +151,22 @@
     entitySamples = {};
     accountSamples = {};
     balanceSamples = {};
+
+    // Load transforms from saved config
+    entityTransforms = loadTransforms(c.entities?.fields);
+    accountTransforms = loadTransforms(c.accounts?.fields);
+    balanceTransforms = loadTransforms(c.balances?.fields);
+  }
+
+  function loadTransforms(fields: Record<string, any>): Record<string, TransformStep[]> {
+    const result: Record<string, TransformStep[]> = {};
+    if (!fields) return result;
+    for (const [internalKey, fieldValue] of Object.entries(fields)) {
+      if (fieldValue && typeof fieldValue === 'object' && 'transforms' in fieldValue && Array.isArray(fieldValue.transforms)) {
+        result[internalKey] = fieldValue.transforms;
+      }
+    }
+    return result;
   }
 
   function switchCompany(idx: number) {
@@ -188,10 +211,14 @@
     return reversed;
   }
 
-  function connectionsToFields(conns: Record<string, string>): Record<string, string> {
-    const fields: Record<string, string> = {};
+  function connectionsToFields(conns: Record<string, string>, transforms: Record<string, TransformStep[]>): Record<string, any> {
+    const fields: Record<string, any> = {};
     for (const [apiField, internalKey] of Object.entries(conns)) {
-      fields[internalKey] = apiField;
+      const fieldConfig: any = { source: apiField };
+      if (transforms[internalKey]?.length) {
+        fieldConfig.transforms = transforms[internalKey];
+      }
+      fields[internalKey] = fieldConfig;
     }
     return fields;
   }
@@ -212,9 +239,9 @@
       cacheTtl,
       timeout,
       refreshInterval,
-      entities: { url: entitiesUrl, fields: connectionsToFields(entityConnections), ...(entitiesDataPath ? { dataPath: entitiesDataPath } : {}) },
-      accounts: { url: accountsUrl, fields: connectionsToFields(accountConnections), ...(accountsDataPath ? { dataPath: accountsDataPath } : {}) },
-      balances: { url: balancesUrl, fields: connectionsToFields(balanceConnections), ...(balancesDataPath ? { dataPath: balancesDataPath } : {}) },
+      entities: { url: entitiesUrl, fields: connectionsToFields(entityConnections, entityTransforms), ...(entitiesDataPath ? { dataPath: entitiesDataPath } : {}) },
+      accounts: { url: accountsUrl, fields: connectionsToFields(accountConnections, accountTransforms), ...(accountsDataPath ? { dataPath: accountsDataPath } : {}) },
+      balances: { url: balancesUrl, fields: connectionsToFields(balanceConnections, balanceTransforms), ...(balancesDataPath ? { dataPath: balancesDataPath } : {}) },
     };
   }
 
@@ -312,6 +339,29 @@
 
   const inputStyle = 'width: 100%; font-size: 12px; padding: 8px 10px; background: var(--bg-card); border: 1px solid var(--border); border-radius: 6px; color: var(--text);';
   const labelStyle = 'display: block; font-size: 9px; color: var(--text-muted); letter-spacing: 0.1em; text-transform: uppercase; margin-bottom: 4px;';
+
+  // Helper: get sample value for an internal key (via its apiField)
+  function getSampleValue(conns: Record<string, string>, samples: Record<string, string>, internalKey: string): string | undefined {
+    const apiField = Object.entries(conns).find(([, k]) => k === internalKey)?.[0];
+    if (!apiField) return undefined;
+    return samples[apiField];
+  }
+
+  // Helper: update transforms for an internal key
+  function updateEntityTransforms(internalKey: string, steps: TransformStep[]) {
+    entityTransforms = { ...entityTransforms, [internalKey]: steps };
+  }
+  function updateAccountTransforms(internalKey: string, steps: TransformStep[]) {
+    accountTransforms = { ...accountTransforms, [internalKey]: steps };
+  }
+  function updateBalanceTransforms(internalKey: string, steps: TransformStep[]) {
+    balanceTransforms = { ...balanceTransforms, [internalKey]: steps };
+  }
+
+  // Connected internal keys for each endpoint
+  let connectedEntityKeys = $derived(() => Object.values(entityConnections));
+  let connectedAccountKeys = $derived(() => Object.values(accountConnections));
+  let connectedBalanceKeys = $derived(() => Object.values(balanceConnections));
 </script>
 
 <div style="max-width: 720px; margin: 0 auto;">
@@ -421,6 +471,18 @@
       <div style="margin-top: 12px;">
         <FieldMapper apiFields={entityApiFields} internalFields={entityInternalFields} bind:connections={entityConnections} sampleValues={entitySamples} />
       </div>
+      <!-- Transforms for Entities -->
+      {#each connectedEntityKeys() as internalKey}
+        {@const apiField = Object.entries(entityConnections).find(([, k]) => k === internalKey)?.[0]}
+        {@const sample = apiField ? entitySamples[apiField] : undefined}
+        <TransformBuilder
+          fieldKey={internalKey}
+          source={apiField ?? ''}
+          transforms={entityTransforms[internalKey] ?? []}
+          sampleValue={sample}
+          onchange={(steps) => updateEntityTransforms(internalKey, steps)}
+        />
+      {/each}
     {/if}
   </div>
 
@@ -441,6 +503,18 @@
       <div style="margin-top: 12px;">
         <FieldMapper apiFields={accountApiFields} internalFields={accountInternalFields} bind:connections={accountConnections} sampleValues={accountSamples} />
       </div>
+      <!-- Transforms for Accounts -->
+      {#each connectedAccountKeys() as internalKey}
+        {@const apiField = Object.entries(accountConnections).find(([, k]) => k === internalKey)?.[0]}
+        {@const sample = apiField ? accountSamples[apiField] : undefined}
+        <TransformBuilder
+          fieldKey={internalKey}
+          source={apiField ?? ''}
+          transforms={accountTransforms[internalKey] ?? []}
+          sampleValue={sample}
+          onchange={(steps) => updateAccountTransforms(internalKey, steps)}
+        />
+      {/each}
     {/if}
   </div>
 
@@ -464,6 +538,18 @@
       <div style="margin-top: 12px;">
         <FieldMapper apiFields={balanceApiFields} internalFields={balanceInternalFields} bind:connections={balanceConnections} sampleValues={balanceSamples} />
       </div>
+      <!-- Transforms for Balances -->
+      {#each connectedBalanceKeys() as internalKey}
+        {@const apiField = Object.entries(balanceConnections).find(([, k]) => k === internalKey)?.[0]}
+        {@const sample = apiField ? balanceSamples[apiField] : undefined}
+        <TransformBuilder
+          fieldKey={internalKey}
+          source={apiField ?? ''}
+          transforms={balanceTransforms[internalKey] ?? []}
+          sampleValue={sample}
+          onchange={(steps) => updateBalanceTransforms(internalKey, steps)}
+        />
+      {/each}
     {/if}
   </div>
 
