@@ -1,5 +1,5 @@
 /**
- * Fuzzy matching — Levenshtein distance with normalized score.
+ * Fuzzy matching — Levenshtein distance + contains heuristic.
  */
 
 export function fuzzyMatch(a: string, b: string): number {
@@ -9,14 +9,32 @@ export function fuzzyMatch(a: string, b: string): number {
   if (s1 === s2) return 1;
   if (s1.length === 0 || s2.length === 0) return 0;
 
+  // Contains match: if one string contains the other
+  // Score based on what fraction of the longer string is covered
+  if (s2.includes(s1)) return Math.max(0.5, s1.length / s2.length);
+  if (s1.includes(s2)) return Math.max(0.5, s2.length / s1.length);
+
+  // Partial contains: check if any word from shorter string appears in longer
+  const words1 = s1.split(/\s+/);
+  const words2 = s2.split(/\s+/);
+  const [shorter, longer] = words1.length <= words2.length ? [words1, words2] : [words2, words1];
+  let matchCount = 0;
+  for (const w of shorter) {
+    if (w.length >= 2 && longer.some(lw => lw.includes(w) || w.includes(lw))) {
+      matchCount++;
+    }
+  }
+  if (matchCount > 0) {
+    const wordScore = 0.5 + 0.5 * (matchCount / shorter.length);
+    if (wordScore > 0.5) return wordScore;
+  }
+
+  // Levenshtein fallback
   const len1 = s1.length;
   const len2 = s2.length;
-
-  // Simple Levenshtein
   const dp: number[][] = Array.from({ length: len1 + 1 }, (_, i) =>
     Array.from({ length: len2 + 1 }, (_, j) => (i === 0 ? j : j === 0 ? i : 0))
   );
-
   for (let i = 1; i <= len1; i++) {
     for (let j = 1; j <= len2; j++) {
       if (s1[i - 1] === s2[j - 1]) {
@@ -26,10 +44,8 @@ export function fuzzyMatch(a: string, b: string): number {
       }
     }
   }
-
   const distance = dp[len1][len2];
-  const maxLen = Math.max(len1, len2);
-  return 1 - distance / maxLen;
+  return 1 - distance / Math.max(len1, len2);
 }
 
 /**
@@ -39,7 +55,7 @@ export function fuzzyMatch(a: string, b: string): number {
 export function findBestMatch(
   query: string,
   candidates: string[],
-  threshold: number = 0.85
+  threshold: number = 0.5
 ): string | null {
   if (!query || !candidates.length) return null;
 
@@ -48,11 +64,11 @@ export function findBestMatch(
 
   for (const candidate of candidates) {
     const score = fuzzyMatch(query, candidate);
-    if (score > bestScore && score >= threshold) {
+    if (score > bestScore) {
       bestScore = score;
       bestCandidate = candidate;
     }
   }
 
-  return bestCandidate;
+  return bestScore >= threshold ? bestCandidate : null;
 }
