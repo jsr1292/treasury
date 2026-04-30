@@ -1,4 +1,14 @@
 /**
+ * Join configuration for multi-endpoint linking.
+ */
+export interface JoinConfig {
+  fromField: string;       // Field in accounts/balances (e.g. "entityName")
+  toField: string;         // Field in entities to match against (e.g. "name")
+  method: 'exact' | 'contains' | 'fuzzy';
+  fuzzyThreshold?: number; // 0-1, default 0.85
+}
+
+/**
  * API Connector — connect Treasury to external JSON APIs instead of direct DB access.
  * 
  * Define endpoints that return JSON arrays/objects, map their fields to our schema.
@@ -63,7 +73,7 @@ export interface ApiConnectorConfig {
   timeout?: number;
   /** Refresh interval in seconds (for auto-polling) */
   refreshInterval?: number;
-  
+
   entities: ApiEndpoint;
   accounts: ApiEndpoint;
   balances: ApiEndpoint;
@@ -71,7 +81,10 @@ export interface ApiConnectorConfig {
   balanceHistory?: ApiEndpoint & { accountIdParam?: string };
   /** Optional: FX rates */
   fxRates?: ApiEndpoint;
-  
+
+  /** Optional: join rules for linking accounts/balances to entities */
+  joins?: JoinConfig[];
+
   /** Optional: additional custom endpoints */
   custom?: Record<string, ApiEndpoint>;
 }

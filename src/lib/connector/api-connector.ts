@@ -1,9 +1,10 @@
 import { getConnectorByCompanyIndex } from './loader';
-import type { ApiConnectorConfig, ApiEndpoint, ApiAuth } from './api-types';
+import type { ApiConnectorConfig, ApiEndpoint, ApiAuth, JoinConfig } from './api-types';
 import type { ConnectorConfig } from './types';
 import { applyTransforms, type TransformStep } from './transforms';
 import { buildPaginationParams, extractCursor, extractLinkNext, shouldContinue, type PaginationConfig } from './pagination';
 import { extractByPath } from './jsonpath';
+import { fuzzyMatch, findBestMatch } from './fuzzy';
 
 // ─── Cache ────────────────────────────────────────────────────────
 
@@ -349,17 +350,135 @@ export async function fetchApiBalanceHistory(accountId: string, companyIndex: nu
 export async function fetchApiFxRates(companyIndex: number = 0) {
   const config = getApiConfig(companyIndex);
   if (!config?.fxRates) return [];
-  
+
   const rows = await apiFetch(config.fxRates, {}, config, companyIndex);
   return mapFields(Array.isArray(rows) ? rows : [rows], config.fxRates.fields);
 }
 
+/**
+ * Apply join rules to resolve entity references in accounts.
+ * Replaces hardcoded fuzzy matching with configurable join rules.
+ */
+function applyJoinsToAccounts(
+  accounts: any[],
+  entities: any[],
+  joins: JoinConfig[]
+): any[] {
+  if (!joins || joins.length === 0) {
+    // Fall back to existing fuzzy auto-match for entityName field
+    return applyDefaultEntityJoin(accounts, entities);
+  }
+
+  // Build entity lookup by the toField
+  const entityByField = new Map<string, any>();
+  for (const e of entities) {
+    for (const join of joins) {
+      const key = e[join.toField];
+      if (key) entityByField.set(String(key).toLowerCase(), e);
+    }
+  }
+
+  const threshold = joins[0]?.fuzzyThreshold ?? 0.85;
+
+  return accounts.map(acct => {
+    const resolved = { ...acct };
+
+    for (const join of joins) {
+      const fromVal = resolved[join.fromField];
+      if (!fromVal) continue;
+
+      const valLower = String(fromVal).toLowerCase();
+
+      if (join.method === 'exact') {
+        const entity = entityByField.get(valLower);
+        if (entity) {
+          resolved.entityId = entity.id;
+          resolved.entityName = entity.name;
+        }
+      } else if (join.method === 'contains') {
+        // Find entity whose toField value is contained in fromVal or vice versa
+        const entity = entities.find(e => {
+          const v = String(e[join.toField] || '').toLowerCase();
+          return valLower.includes(v) || v.includes(valLower);
+        });
+        if (entity) {
+          resolved.entityId = entity.id;
+          resolved.entityName = entity.name;
+        }
+      } else if (join.method === 'fuzzy') {
+        const entity = findBestMatchWithThreshold(String(fromVal), entities.map(e => e[join.toField]).filter(Boolean), entityByField, threshold);
+        if (entity) {
+          resolved.entityId = entity.id;
+          resolved.entityName = entity.name;
+        }
+      }
+    }
+    return resolved;
+  });
+}
+
+function findBestMatchWithThreshold(query: string, candidates: string[], entityByField: Map<string, any>, threshold: number): any | null {
+  let best: any = null;
+  let bestScore = 0;
+  const queryLower = query.toLowerCase();
+
+  for (const [key, entity] of entityByField.entries()) {
+    if (queryLower === key) return entity; // exact match shortcut
+    const score = fuzzyMatch(query, key);
+    if (score > bestScore && score >= threshold) {
+      bestScore = score;
+      best = entity;
+    }
+  }
+  return best;
+}
+
+/**
+ * Fallback entity join when no explicit joins are configured.
+ * Uses fuzzy matching on entityName field.
+ */
+function applyDefaultEntityJoin(accounts: any[], entities: any[]): any[] {
+  if (!entities.length) return accounts;
+
+  // Build entity name lookup (case-insensitive)
+  const entityByName = new Map<string, any>();
+  for (const e of entities) {
+    if (e.name) entityByName.set(e.name.toLowerCase(), e);
+  }
+
+  return accounts.map(acct => {
+    const entityName = acct.entityName;
+    if (!entityName) return acct;
+
+    const nameLower = entityName.toLowerCase();
+    // Exact match first
+    if (entityByName.has(nameLower)) {
+      const entity = entityByName.get(nameLower);
+      return { ...acct, entityId: entity.id, entityName: entity.name };
+    }
+
+    // Fuzzy match
+    const best = findBestMatchWithThreshold(entityName, [], entityByName, 0.85);
+    if (best) {
+      return { ...acct, entityId: best.id, entityName: best.name };
+    }
+
+    return acct;
+  });
+}
+
 export async function fetchApiDashboard(companyIndex: number = 0) {
+  const config = getApiConfig(companyIndex);
+  const joins = config?.joins ?? [];
+
   const [entities, accounts, balances] = await Promise.all([
     fetchApiEntities(companyIndex),
     fetchApiAccounts(companyIndex),
     fetchApiBalances(companyIndex),
   ]);
+
+  // Apply join rules to resolve entity names → entity IDs
+  const accountsWithJoins = applyJoinsToAccounts(accounts, entities, joins);
 
   const balanceMap = new Map<string, any>();
   for (const b of balances) {
@@ -368,13 +487,13 @@ export async function fetchApiDashboard(companyIndex: number = 0) {
   }
 
   const totalsByCurrency: Record<string, number> = {};
-  const enrichedAccounts = accounts.map(acct => {
+  const enrichedAccounts = accountsWithJoins.map(acct => {
     const bal = balanceMap.get(String(acct.id || acct.accountId));
     const balance = bal ? parseFloat(bal.balance || bal.amount || 0) : 0;
     const currency = acct.currency || bal?.currency || 'EUR';
-    
+
     totalsByCurrency[currency] = (totalsByCurrency[currency] || 0) + balance;
-    
+
     return {
       ...acct,
       latestBalance: bal ? { balance, date: bal.date, currency } : null,

@@ -65,6 +65,11 @@
   let timeout = $state(15000);
   let refreshInterval = $state(0);
 
+  // Joins
+  let joins = $state<{ fromField: string; toField: string; method: 'exact' | 'contains' | 'fuzzy'; fuzzyThreshold: number }[]>([]);
+  let showJoinForm = $state(false);
+  let newJoin = $state({ fromField: 'entityName', toField: 'name', method: 'fuzzy' as const, fuzzyThreshold: 0.85 });
+
   // State
   let saving = $state(false);
   let saved = $state(false);
@@ -178,6 +183,14 @@
     entityTransforms = loadTransforms(c.entities?.fields);
     accountTransforms = loadTransforms(c.accounts?.fields);
     balanceTransforms = loadTransforms(c.balances?.fields);
+
+    // Load joins
+    joins = (c.joins || []).map((j: any) => ({
+      fromField: j.fromField || 'entityName',
+      toField: j.toField || 'name',
+      method: j.method || 'fuzzy',
+      fuzzyThreshold: j.fuzzyThreshold ?? 0.85,
+    }));
   }
 
   function loadTransforms(fields: Record<string, any>): Record<string, TransformStep[]> {
@@ -261,6 +274,18 @@
     return cfg;
   }
 
+  // ─── Join management ──────────────────────────────────────────────
+
+  function addJoin() {
+    joins = [...joins, { ...newJoin }];
+    showJoinForm = false;
+    newJoin = { fromField: 'entityName', toField: 'name', method: 'fuzzy', fuzzyThreshold: 0.85 };
+  }
+
+  function removeJoin(index: number) {
+    joins = joins.filter((_, i) => i !== index);
+  }
+
   function buildConfig() {
     return {
       type: 'api',
@@ -272,6 +297,7 @@
       entities: { url: entitiesUrl, fields: connectionsToFields(entityConnections, entityTransforms), ...(entitiesDataPath ? { dataPath: entitiesDataPath } : {}), ...(buildPaginationConfig(entitiesPaginationType, entitiesPaginationPageSize, entitiesPaginationCursorPath) ? { pagination: buildPaginationConfig(entitiesPaginationType, entitiesPaginationPageSize, entitiesPaginationCursorPath) } : {}) },
       accounts: { url: accountsUrl, fields: connectionsToFields(accountConnections, accountTransforms), ...(accountsDataPath ? { dataPath: accountsDataPath } : {}), ...(buildPaginationConfig(accountsPaginationType, accountsPaginationPageSize, accountsPaginationCursorPath) ? { pagination: buildPaginationConfig(accountsPaginationType, accountsPaginationPageSize, accountsPaginationCursorPath) } : {}) },
       balances: { url: balancesUrl, fields: connectionsToFields(balanceConnections, balanceTransforms), ...(balancesDataPath ? { dataPath: balancesDataPath } : {}), ...(buildPaginationConfig(balancesPaginationType, balancesPaginationPageSize, balancesPaginationCursorPath) ? { pagination: buildPaginationConfig(balancesPaginationType, balancesPaginationPageSize, balancesPaginationCursorPath) } : {}) },
+      ...(joins.length > 0 ? { joins } : {}),
     };
   }
 
@@ -689,6 +715,66 @@
       <input type="number" bind:value={refreshInterval} min="0" style={inputStyle} />
       <div style="font-size: 9px; color: var(--text-dim); margin-top: 3px;">Dashboard will auto-refresh every N minutes when enabled</div>
     </div>
+  </div>
+
+  <!-- Joins -->
+  <div class="glass-card" style="padding: 16px; margin-bottom: 12px;">
+    <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 10px;">
+      <div style="font-size: 11px; font-weight: 600; color: var(--text); flex: 1;">🔗 Joins</div>
+      <button onclick={() => { showJoinForm = !showJoinForm; }} style="font-size: 9px; padding: 4px 10px; border: 1px solid var(--gold); border-radius: 4px; background: rgba(201,168,76,0.1); color: var(--gold); cursor: pointer;">
+        + Add join
+      </button>
+    </div>
+    <div style="font-size: 9px; color: var(--text3); margin-bottom: 8px;">Define how accounts/balances link to entities (e.g. entityName → name, fuzzy match)</div>
+
+    <!-- Add join form -->
+    {#if showJoinForm}
+      <div style="padding: 10px; background: var(--bg-surface); border: 1px solid var(--border); border-radius: 6px; margin-bottom: 10px;">
+        <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; margin-bottom: 8px;">
+          <div>
+            <label style="display: block; font-size: 8px; color: var(--text3); text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 3px;">From field</label>
+            <input bind:value={newJoin.fromField} placeholder="entityName" style="font-size: 10px; padding: 5px 8px; background: var(--bg-card); border: 1px solid var(--border); border-radius: 4px; color: var(--text); width: 100%;" />
+          </div>
+          <div>
+            <label style="display: block; font-size: 8px; color: var(--text3); text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 3px;">To field</label>
+            <input bind:value={newJoin.toField} placeholder="name" style="font-size: 10px; padding: 5px 8px; background: var(--bg-card); border: 1px solid var(--border); border-radius: 4px; color: var(--text); width: 100%;" />
+          </div>
+          <div>
+            <label style="display: block; font-size: 8px; color: var(--text3); text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 3px;">Method</label>
+            <select bind:value={newJoin.method} style="font-size: 10px; padding: 5px 8px; background: var(--bg-card); border: 1px solid var(--border); border-radius: 4px; color: var(--text); width: 100%;">
+              <option value="exact">Exact</option>
+              <option value="contains">Contains</option>
+              <option value="fuzzy">Fuzzy</option>
+            </select>
+          </div>
+        </div>
+        {#if newJoin.method === 'fuzzy'}
+          <div style="margin-bottom: 8px;">
+            <label style="display: block; font-size: 8px; color: var(--text3); text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 3px;">Fuzzy threshold (0-1)</label>
+            <input type="number" bind:value={newJoin.fuzzyThreshold} min="0" max="1" step="0.05" style="font-size: 10px; padding: 5px 8px; background: var(--bg-card); border: 1px solid var(--border); border-radius: 4px; color: var(--text); width: 100px;" />
+          </div>
+        {/if}
+        <div style="display: flex; gap: 6px;">
+          <button onclick={addJoin} style="font-size: 9px; padding: 4px 10px; border: none; border-radius: 4px; background: var(--gold); color: #000; cursor: pointer; font-weight: 600;">Add</button>
+          <button onclick={() => { showJoinForm = false; }} style="font-size: 9px; padding: 4px 10px; border: 1px solid var(--border); border-radius: 4px; background: transparent; color: var(--text3); cursor: pointer;">Cancel</button>
+        </div>
+      </div>
+    {/if}
+
+    <!-- Existing joins -->
+    {#if joins.length === 0}
+      <div style="font-size: 9px; color: var(--text3); text-align: center; padding: 8px 0;">No joins defined. Accounts will use entityName as-is.</div>
+    {:else}
+      {#each joins as join, i}
+        <div style="display: flex; align-items: center; gap: 8px; padding: 6px 8px; background: var(--bg-surface); border: 1px solid var(--border); border-radius: 5px; margin-bottom: 4px;">
+          <span style="font-size: 9px; color: var(--text3);">{join.fromField}</span>
+          <span style="font-size: 9px; color: var(--gold);">→</span>
+          <span style="font-size: 9px; color: var(--text3);">{join.toField}</span>
+          <span style="font-size: 8px; padding: 1px 6px; border-radius: 10px; background: rgba(201,168,76,0.1); color: var(--gold); margin-left: auto;">{join.method}{join.method === 'fuzzy' ? ` (${join.fuzzyThreshold})` : ''}</span>
+          <button onclick={() => removeJoin(i)} style="font-size: 8px; padding: 2px 6px; border: 1px solid rgba(255,77,106,0.3); border-radius: 3px; background: transparent; color: var(--red); cursor: pointer;">✕</button>
+        </div>
+      {/each}
+    {/if}
   </div>
 
   <!-- Actions -->
